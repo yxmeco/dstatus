@@ -1,0 +1,739 @@
+{% extends "base.html" %}
+
+{% block title %}{{ domain.name }} - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ domain.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        {% if domain.check_whois %}
+        <button type="button" class="btn btn-info me-2 refresh-whois-btn" 
+                data-domain-id="{{ domain.id }}" data-domain-name="{{ domain.name }}">
+            <i class="fas fa-globe"></i> 刷新WHOIS
+            <span class="refresh-status-indicator" style="display: none;">
+                <i class="fas fa-spinner fa-spin"></i>
+            </span>
+        </button>
+        {% endif %}
+        {% if domain.check_access %}
+        <button type="button" class="btn btn-warning me-2 refresh-access-btn" 
+                data-domain-id="{{ domain.id }}" data-domain-name="{{ domain.name }}">
+            <i class="fas fa-check-circle"></i> 刷新官网可用性
+            <span class="refresh-status-indicator" style="display: none;">
+                <i class="fas fa-spinner fa-spin"></i>
+            </span>
+        </button>
+        {% endif %}
+        <a href="{{ url_for('domains.edit', id=domain.id) }}" class="btn btn-warning me-2">
+            <i class="fas fa-edit"></i> 编辑
+        </a>
+        <a href="{{ url_for('domains.index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+
+
+<div class="row">
+    <!-- 域名信息 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">域名信息</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>域名名称:</strong></td>
+                        <td>{{ domain.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>描述:</strong></td>
+                        <td>{{ domain.description or '无' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>状态:</strong></td>
+                        <td>
+                            <span class="badge {{ domain.status_badge_class }}">
+                                {{ domain.status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>SSL检查:</strong></td>
+                        <td>
+                            {% if domain.check_ssl %}
+                                <span class="badge bg-info">启用</span>
+                            {% else %}
+                                <span class="badge bg-secondary">禁用</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>WHOIS检查:</strong></td>
+                        <td>
+                            {% if domain.check_whois %}
+                                <span class="badge bg-info">启用</span>
+                            {% else %}
+                                <span class="badge bg-secondary">禁用</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>官网可用性检查:</strong></td>
+                        <td>
+                            {% if domain.check_access %}
+                                <span class="badge bg-primary">启用</span>
+                            {% else %}
+                                <span class="badge bg-secondary">禁用</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>通知配置:</strong></td>
+                        <td>
+                            {% if domain.notification_config %}
+                                <span class="badge bg-primary">{{ domain.notification_config.name }}</span>
+                            {% else %}
+                                <span class="text-muted">无</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>创建时间:</strong></td>
+                        <td>{{ domain.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- SSL证书信息 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">SSL证书信息</h5>
+            </div>
+            <div class="card-body">
+                {% if domain.certificates %}
+                    {% set cert = domain.certificates[0] %}
+                    <table class="table table-borderless">
+                        <tr>
+                            <td><strong>证书状态:</strong></td>
+                            <td>
+                                {% if cert.is_valid %}
+                                    {% if cert.is_expired %}
+                                        <span class="badge bg-danger">已过期</span>
+                                    {% elif cert.is_expiring_soon %}
+                                        <span class="badge bg-warning">即将到期</span>
+                                    {% else %}
+                                        <span class="badge bg-success">有效</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-danger">无效</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>剩余天数:</strong></td>
+                            <td>
+                                {% if cert.days_until_expiry %}
+                                    <span class="{% if cert.days_until_expiry <= 7 %}text-danger{% elif cert.days_until_expiry <= 30 %}text-warning{% else %}text-success{% endif %}">
+                                        {{ cert.days_until_expiry }} 天
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">未知</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>生效时间:</strong></td>
+                            <td>{{ cert.not_before.strftime('%Y-%m-%d %H:%M:%S') if cert.not_before else '未知' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>到期时间:</strong></td>
+                            <td>{{ cert.not_after.strftime('%Y-%m-%d %H:%M:%S') if cert.not_after else '未知' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>最后检查:</strong></td>
+                            <td>{{ cert.last_checked.strftime('%Y-%m-%d %H:%M:%S') if cert.last_checked else '未检查' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>域名匹配:</strong></td>
+                            <td>
+                                {% if cert.domain_match_status == 'exact' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check"></i> 精确匹配
+                                    </span>
+                                {% elif cert.domain_match_status == 'wildcard' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-star"></i> 通配符匹配
+                                    </span>
+                                {% elif cert.domain_match_status == 'mismatch' %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-times"></i> 不匹配
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-question"></i> 未知
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if cert.domain_list %}
+                        <tr>
+                            <td><strong>证书域名:</strong></td>
+                            <td>
+                                <div class="small">
+                                    {% for domain_name in cert.domain_list %}
+                                        <span class="badge bg-light text-dark me-1">{{ domain_name }}</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                {% else %}
+                    <p class="text-muted">暂无证书信息</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 官网可用性检查信息 -->
+{% if domain.check_access %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">官网可用性检查信息</h5>
+            </div>
+            <div class="card-body">
+                {% if domain.access_checks %}
+                    {% set latest_check = domain.access_checks|sort(attribute='checked_at', reverse=true)|first %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>可用性状态:</strong></td>
+                                    <td>
+                                        <span class="badge {{ domain.access_status_badge_class }}">
+                                            {{ domain.access_status_display }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>状态码:</strong></td>
+                                    <td>
+                                        {% if latest_check.status_code %}
+                                            <span class="badge bg-info">{{ latest_check.status_code }}</span>
+                                        {% else %}
+                                            <span class="text-muted">未知</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>响应时间:</strong></td>
+                                    <td>
+                                        {% if latest_check.response_time %}
+                                            <span class="text-success">{{ latest_check.response_time }} 秒</span>
+                                        {% else %}
+                                            <span class="text-muted">未知</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>最后检查:</strong></td>
+                                    <td>{{ latest_check.checked_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            {% if latest_check.error_message %}
+                            <div class="alert alert-warning">
+                                <h6><i class="fas fa-exclamation-triangle"></i> 访问异常</h6>
+                                <p class="mb-0">{{ latest_check.error_message }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- 检查历史 -->
+                    <div class="mt-3">
+                        <h6>检查历史</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>检查时间</th>
+                                        <th>状态</th>
+                                        <th>状态码</th>
+                                        <th>响应时间</th>
+                                        <th>错误信息</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for check in domain.access_checks[-5:] %}
+                                    <tr>
+                                        <td>{{ check.checked_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td>
+                                            {% if check.is_accessible %}
+                                                <span class="badge bg-success">可访问</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">不可访问</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if check.status_code %}
+                                                <span class="badge bg-info">{{ check.status_code }}</span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if check.response_time %}
+                                                {{ check.response_time }}s
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if check.error_message %}
+                                                <small class="text-danger">{{ check.error_message }}</small>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无官网可用性检查记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- WHOIS信息 -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">WHOIS信息</h5>
+            </div>
+            <div class="card-body">
+                {% if domain.whois_records %}
+                    {% set whois_record = domain.whois_records[0] %}
+                    {% if whois_record.is_valid %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>域名状态:</strong></td>
+                                        <td>
+                                            {% if whois_record.expiration_date %}
+                                                {% if whois_record.is_expired %}
+                                                    <span class="badge bg-danger">已过期</span>
+                                                {% elif whois_record.is_expiring_soon %}
+                                                    <span class="badge bg-warning">即将到期</span>
+                                                {% else %}
+                                                    <span class="badge bg-success">有效</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="badge bg-secondary">未知</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>剩余天数:</strong></td>
+                                        <td>
+                                            {% if whois_record.days_until_expiry %}
+                                                <span class="{% if whois_record.days_until_expiry <= 7 %}text-danger{% elif whois_record.days_until_expiry <= 30 %}text-warning{% else %}text-success{% endif %}">
+                                                    {{ whois_record.days_until_expiry }} 天
+                                                </span>
+                                            {% else %}
+                                                <span class="text-muted">未知</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>注册商:</strong></td>
+                                        <td>{{ whois_record.registrar or '未知' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>注册时间:</strong></td>
+                                        <td>{{ whois_record.creation_date.strftime('%Y-%m-%d') if whois_record.creation_date else '未知' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>到期时间:</strong></td>
+                                        <td>{{ whois_record.expiration_date.strftime('%Y-%m-%d') if whois_record.expiration_date else '未知' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>更新时间:</strong></td>
+                                        <td>{{ whois_record.updated_date.strftime('%Y-%m-%d') if whois_record.updated_date else '未知' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>最后检查:</strong></td>
+                                        <td>{{ whois_record.last_checked.strftime('%Y-%m-%d %H:%M:%S') if whois_record.last_checked else '未检查' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>WHOIS服务器:</strong></td>
+                                        <td>
+                                            {% if whois_record.whois_server %}
+                                                <span class="badge bg-info">{{ whois_record.whois_server }}</span>
+                                            {% else %}
+                                                <span class="text-muted">未知</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                {% if whois_record.status %}
+                                <div class="mb-3">
+                                    <strong>域名状态:</strong>
+                                    <div class="mt-2">
+                                        {% for status in whois_record.status.split(',') %}
+                                            <span class="badge bg-light text-dark me-1">{{ status.strip() }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                                {% if whois_record.name_servers %}
+                                <div class="mb-3">
+                                    <strong>名称服务器:</strong>
+                                    <div class="mt-2">
+                                        {% for ns in whois_record.name_servers.split(',') %}
+                                            <span class="badge bg-light text-dark me-1">{{ ns.strip() }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-exclamation-triangle"></i> WHOIS查询失败</h6>
+                            <p class="mb-0"><strong>最后检查:</strong> {{ whois_record.last_checked.strftime('%Y-%m-%d %H:%M:%S') if whois_record.last_checked else '未检查' }}</p>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted">暂无WHOIS信息</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 通知历史 -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">通知历史</h5>
+            </div>
+            <div class="card-body">
+                {% if domain.notifications %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>类型</th>
+                                    <th>状态</th>
+                                    <th>消息内容</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for notification in domain.notifications[-5:] %}
+                                <tr>
+                                    <td>{{ notification.sent_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>
+                                        {% if notification.type == 'cert_expiry' %}
+                                            <span class="badge bg-warning">证书到期</span>
+                                        {% elif notification.type == 'whois_expiry' %}
+                                            <span class="badge bg-danger">域名到期</span>
+                                        {% elif notification.type == 'domain_inaccessible' %}
+                                            <span class="badge bg-danger">官网不可访问</span>
+                                        {% else %}
+                                            <span class="badge bg-info">{{ notification.type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if notification.is_read %}
+                                            <span class="badge bg-success">已读</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">未读</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ notification.message[:100] }}{% if notification.message|length > 100 %}...{% endif %}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无通知记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 域名刷新状态指示器 -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="domainRefreshIndicator" class="toast" role="alert" aria-live="assertive" aria-atomic="true" style="display: none;">
+        <div class="toast-header">
+            <i class="fas fa-sync-alt text-primary me-2"></i>
+            <strong class="me-auto">域名刷新</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <div id="domainRefreshStatus">正在刷新域名信息...</div>
+            <div id="domainRefreshProgress" class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%"></div>
+            </div>
+            <div id="domainRefreshResult" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // WHOIS刷新功能
+    document.querySelectorAll('.refresh-whois-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const domainId = this.getAttribute('data-domain-id');
+            const domainName = this.getAttribute('data-domain-name');
+            
+            // 防止重复点击
+            if (this.disabled) return;
+            
+            // 更新按钮状态
+            this.disabled = true;
+            this.classList.remove('btn-info');
+            this.classList.add('btn-secondary');
+            this.querySelector('.fas.fa-globe').style.display = 'none';
+            this.querySelector('.refresh-status-indicator').style.display = 'inline';
+            
+            // 显示刷新状态
+            showDomainRefreshProgress(`正在刷新 ${domainName} 的WHOIS信息...`);
+            
+            // 发送刷新请求
+            fetch(`/domains/${domainId}/refresh_whois`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                handleDomainRefreshResult(data, domainName, 'WHOIS');
+            })
+            .catch(error => {
+                handleDomainRefreshError(error, domainName, 'WHOIS');
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                resetDomainRefreshButtonState(this, 'whois');
+            });
+        });
+    });
+    
+    // 官网可用性刷新功能
+    document.querySelectorAll('.refresh-access-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const domainId = this.getAttribute('data-domain-id');
+            const domainName = this.getAttribute('data-domain-name');
+            
+            // 防止重复点击
+            if (this.disabled) return;
+            
+            // 更新按钮状态
+            this.disabled = true;
+            this.classList.remove('btn-warning');
+            this.classList.add('btn-secondary');
+            this.querySelector('.fas.fa-check-circle').style.display = 'none';
+            this.querySelector('.refresh-status-indicator').style.display = 'inline';
+            
+            // 显示刷新状态
+            showDomainRefreshProgress(`正在刷新 ${domainName} 的官网可用性...`);
+            
+            // 发送刷新请求
+            fetch(`/domains/${domainId}/refresh_access`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                handleDomainRefreshResult(data, domainName, '官网可用性');
+            })
+            .catch(error => {
+                handleDomainRefreshError(error, domainName, '官网可用性');
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                resetDomainRefreshButtonState(this, 'access');
+            });
+        });
+    });
+    
+    // 显示域名刷新进度
+    function showDomainRefreshProgress(message) {
+        const indicator = document.getElementById('domainRefreshIndicator');
+        const progress = document.getElementById('domainRefreshProgress');
+        const result = document.getElementById('domainRefreshResult');
+        const status = document.getElementById('domainRefreshStatus');
+        
+        status.textContent = message;
+        progress.style.display = 'block';
+        result.style.display = 'none';
+        
+        const toast = new bootstrap.Toast(indicator);
+        toast.show();
+    }
+    
+    // 处理域名刷新结果
+    function handleDomainRefreshResult(data, domainName, refreshType) {
+        const indicator = document.getElementById('domainRefreshIndicator');
+        const progress = document.getElementById('domainRefreshProgress');
+        const result = document.getElementById('domainRefreshResult');
+        const status = document.getElementById('domainRefreshStatus');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        if (data.status === 'success') {
+            status.innerHTML = '<i class="fas fa-check-circle text-success me-2"></i><strong>刷新成功</strong>';
+            result.innerHTML = `
+                <div class="domain-refresh-result-success">
+                    <div class="mt-2">
+                        <strong>域名:</strong> ${domainName}<br>
+                        <strong>刷新类型:</strong> ${refreshType}<br>
+                        <strong>状态:</strong> ${data.message}<br>
+                        <strong>时间:</strong> ${new Date().toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'})}
+                    </div>
+                </div>
+            `;
+            
+            // 3秒后自动刷新页面
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            status.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-2"></i><strong>刷新失败</strong>';
+            result.innerHTML = `
+                <div class="domain-refresh-result-error">
+                    <div class="mt-2">
+                        <strong>域名:</strong> ${domainName}<br>
+                        <strong>刷新类型:</strong> ${refreshType}<br>
+                        <strong>错误:</strong> ${data.message}
+                    </div>
+                </div>
+            `;
+            
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                const toast = bootstrap.Toast.getInstance(indicator);
+                if (toast) toast.hide();
+            }, 5000);
+        }
+    }
+    
+    // 处理域名刷新错误
+    function handleDomainRefreshError(error, domainName, refreshType) {
+        const indicator = document.getElementById('domainRefreshIndicator');
+        const progress = document.getElementById('domainRefreshProgress');
+        const result = document.getElementById('domainRefreshResult');
+        const status = document.getElementById('domainRefreshStatus');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        status.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-2"></i><strong>刷新失败</strong>';
+        result.innerHTML = `
+            <div class="domain-refresh-result-error">
+                <div class="mt-2">
+                    <strong>域名:</strong> ${domainName}<br>
+                    <strong>刷新类型:</strong> ${refreshType}<br>
+                    <strong>错误:</strong> 网络错误或服务器异常<br>
+                    <strong>详情:</strong> ${error.message}
+                </div>
+            </div>
+        `;
+        
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            const toast = bootstrap.Toast.getInstance(indicator);
+            if (toast) toast.hide();
+        }, 5000);
+    }
+    
+    // 重置域名刷新按钮状态
+    function resetDomainRefreshButtonState(button, type) {
+        button.disabled = false;
+        button.classList.remove('btn-secondary');
+        
+        if (type === 'whois') {
+            button.classList.add('btn-info');
+            button.querySelector('.fas.fa-globe').style.display = 'inline';
+        } else if (type === 'access') {
+            button.classList.add('btn-warning');
+            button.querySelector('.fas.fa-check-circle').style.display = 'inline';
+        }
+        
+        button.querySelector('.refresh-status-indicator').style.display = 'none';
+    }
+});
+</script>
+
+<style>
+.domain-refresh-result-success {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.domain-refresh-result-error {
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.refresh-whois-btn,
+.refresh-access-btn {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.refresh-whois-btn:disabled,
+.refresh-access-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.refresh-status-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #6c757d;
+}
+</style>
+{% endblock %}

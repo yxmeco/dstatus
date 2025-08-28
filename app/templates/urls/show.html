@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}{{ url.name }} - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ url.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-info me-2 check-url-btn" 
+                data-url-id="{{ url.id }}" data-url-name="{{ url.name }}">
+            <i class="fas fa-sync-alt"></i> 立即检查
+            <span class="check-status-indicator" style="display: none;">
+                <i class="fas fa-spinner fa-spin"></i>
+            </span>
+        </button>
+        <a href="{{ url_for('urls.edit', id=url.id) }}" class="btn btn-warning me-2">
+            <i class="fas fa-edit"></i> 编辑
+        </a>
+        <a href="{{ url_for('urls.index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- URL信息 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">URL信息</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>URL名称:</strong></td>
+                        <td>{{ url.name }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>URL地址:</strong></td>
+                        <td><a href="{{ url.url }}" target="_blank">{{ url.url }}</a></td>
+                    </tr>
+                    <tr>
+                        <td><strong>描述:</strong></td>
+                        <td>{{ url.description or '无' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>状态:</strong></td>
+                        <td>
+                            {% if url.is_active %}
+                                <span class="badge bg-success">活跃</span>
+                            {% else %}
+                                <span class="badge bg-secondary">停用</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>检查间隔:</strong></td>
+                        <td>{{ url.check_interval }}分钟</td>
+                    </tr>
+                    <tr>
+                        <td><strong>超时时间:</strong></td>
+                        <td>{{ url.timeout }}秒</td>
+                    </tr>
+                    <tr>
+                        <td><strong>创建时间:</strong></td>
+                        <td>{{ url.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最新检查状态 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">最新检查状态</h5>
+            </div>
+            <div class="card-body">
+                {% if url.url_checks %}
+                    {% set latest_check = url.url_checks[-1] %}
+                    <table class="table table-borderless">
+                        <tr>
+                            <td><strong>状态:</strong></td>
+                            <td>
+                                {% if latest_check.is_available %}
+                                    <span class="badge bg-success">正常</span>
+                                {% else %}
+                                    <span class="badge bg-danger">异常</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>状态码:</strong></td>
+                            <td>{{ latest_check.status_code or 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>响应时间:</strong></td>
+                            <td>{% if latest_check.response_time %}{{ "%.2f"|format(latest_check.response_time) }}秒{% else %}N/A{% endif %}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>检查时间:</strong></td>
+                            <td>{{ latest_check.checked_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        </tr>
+                        {% if latest_check.error_message %}
+                        <tr>
+                            <td><strong>错误信息:</strong></td>
+                            <td class="text-danger">{{ latest_check.error_message }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                {% else %}
+                    <p class="text-muted">暂无检查记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- URL检查历史 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">检查历史</h5>
+            </div>
+            <div class="card-body">
+                {% if url.url_checks %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>检查时间</th>
+                                    <th>状态</th>
+                                    <th>状态码</th>
+                                    <th>响应时间</th>
+                                    <th>错误信息</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for check in url.url_checks[-10:] %}
+                                <tr>
+                                    <td>{{ check.checked_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                    <td>
+                                        {% if check.is_available %}
+                                            <span class="badge bg-success">正常</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">异常</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ check.status_code or '-' }}</td>
+                                    <td>{% if check.response_time %}{{ "%.2f"|format(check.response_time) }}s{% else %}N/A{% endif %}</td>
+                                    <td>{{ check.error_message or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无检查历史</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- URL检查状态指示器 -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="urlCheckIndicator" class="toast" role="alert" aria-live="assertive" aria-atomic="true" style="display: none;">
+        <div class="toast-header">
+            <i class="fas fa-spinner fa-spin text-primary me-2"></i>
+            <strong class="me-auto">URL检查</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <div id="urlCheckStatus">正在检查URL...</div>
+            <div id="urlCheckProgress" class="progress mt-2" style="height: 4px; display: none;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%"></div>
+            </div>
+            <div id="urlCheckResult" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // URL检查功能
+    document.querySelector('.check-url-btn').addEventListener('click', function() {
+        const urlId = this.getAttribute('data-url-id');
+        const urlName = this.getAttribute('data-url-name');
+        
+        // 防止重复点击
+        if (this.disabled) return;
+        
+        // 更新按钮状态
+        this.disabled = true;
+        this.classList.remove('btn-info');
+        this.classList.add('btn-secondary');
+        this.querySelector('.fas.fa-sync-alt').style.display = 'none';
+        this.querySelector('.check-status-indicator').style.display = 'inline';
+        
+        // 显示检查状态
+        showUrlCheckProgress(`正在检查 ${urlName}...`);
+        
+        // 发送检查请求
+        fetch(`/urls/${urlId}/check`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            handleUrlCheckResult(data, urlName);
+        })
+        .catch(error => {
+            handleUrlCheckError(error, urlName);
+        })
+        .finally(() => {
+            // 恢复按钮状态
+            resetUrlCheckButtonState(this);
+        });
+    });
+    
+    // 显示URL检查进度
+    function showUrlCheckProgress(message) {
+        const indicator = document.getElementById('urlCheckIndicator');
+        const progress = document.getElementById('urlCheckProgress');
+        const result = document.getElementById('urlCheckResult');
+        const status = document.getElementById('urlCheckStatus');
+        
+        status.textContent = message;
+        progress.style.display = 'block';
+        result.style.display = 'none';
+        
+        const toast = new bootstrap.Toast(indicator);
+        toast.show();
+    }
+    
+    // 处理URL检查结果
+    function handleUrlCheckResult(data, urlName) {
+        const indicator = document.getElementById('urlCheckIndicator');
+        const progress = document.getElementById('urlCheckProgress');
+        const result = document.getElementById('urlCheckResult');
+        const status = document.getElementById('urlCheckStatus');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        if (data.status === 'success') {
+            status.innerHTML = '<i class="fas fa-check-circle text-success me-2"></i><strong>检查成功</strong>';
+            result.innerHTML = `
+                <div class="url-check-result-success">
+                    <div class="mt-2">
+                        <strong>响应时间:</strong> ${data.response_time ? data.response_time.toFixed(2) + '秒' : 'N/A'}<br>
+                        <strong>状态码:</strong> ${data.status_code || 'N/A'}<br>
+                        <strong>响应大小:</strong> ${data.response_size || 'N/A'} 字节
+                    </div>
+                </div>
+            `;
+        } else {
+            status.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-2"></i><strong>检查失败</strong>';
+            result.innerHTML = `
+                <div class="url-check-result-error">
+                    <div class="mt-2">${data.message}</div>
+                </div>
+            `;
+        }
+        
+        // 3秒后自动刷新页面
+        setTimeout(() => {
+            window.location.reload();
+        }, 3000);
+    }
+    
+    // 处理URL检查错误
+    function handleUrlCheckError(error, urlName) {
+        const indicator = document.getElementById('urlCheckIndicator');
+        const progress = document.getElementById('urlCheckProgress');
+        const result = document.getElementById('urlCheckResult');
+        const status = document.getElementById('urlCheckStatus');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        status.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-2"></i><strong>检查失败</strong>';
+        result.innerHTML = `
+            <div class="url-check-result-error">
+                <div class="mt-2">网络错误: ${error.message}</div>
+            </div>
+        `;
+        
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            const toast = bootstrap.Toast.getInstance(indicator);
+            if (toast) toast.hide();
+        }, 5000);
+    }
+    
+    // 重置URL检查按钮状态
+    function resetUrlCheckButtonState(button) {
+        button.disabled = false;
+        button.classList.remove('btn-secondary');
+        button.classList.add('btn-info');
+        button.querySelector('.fas.fa-sync-alt').style.display = 'inline';
+        button.querySelector('.check-status-indicator').style.display = 'none';
+    }
+});
+</script>
+
+<style>
+.url-check-result-success {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.url-check-result-error {
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.check-url-btn {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.check-url-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.check-status-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+}
+</style>
+{% endblock %}

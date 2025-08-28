@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}通知管理 - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">通知管理</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('notifications.new_config') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> 添加通知配置
+        </a>
+    </div>
+</div>
+
+{% if configs %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>配置名称</th>
+                <th>类型</th>
+                <th>Webhook URL</th>
+                <th>企业微信机器人Key</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for config in configs %}
+            <tr>
+                <td>
+                    <strong>{{ config.name }}</strong>
+                </td>
+                <td>
+                    {% if config.type == 'webhook' %}
+                        <span class="badge bg-info">Webhook</span>
+                    {% elif config.type == 'wechat_bot' %}
+                        <span class="badge bg-success">企业微信机器人</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ config.type }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if config.webhook_url %}
+                        <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ config.webhook_url }}">
+                            {{ config.webhook_url }}
+                        </span>
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if config.wechat_bot_key %}
+                        <span class="text-truncate d-inline-block" style="max-width: 150px;" title="{{ config.wechat_bot_key }}">
+                            {{ config.wechat_bot_key[:10] }}...
+                        </span>
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if config.is_active %}
+                        <span class="badge bg-success">启用</span>
+                    {% else %}
+                        <span class="badge bg-secondary">禁用</span>
+                    {% endif %}
+                </td>
+                <td>{{ config.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-outline-info test-notification-btn" 
+                                data-config-id="{{ config.id }}" data-config-name="{{ config.name }}"
+                                data-bs-toggle="tooltip" data-bs-placement="top" title="测试通知">
+                            <i class="fas fa-paper-plane"></i>
+                            <span class="test-status-indicator" style="display: none;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </span>
+                        </button>
+                        <a href="{{ url_for('notifications.edit_config', id=config.id) }}" class="btn btn-sm btn-outline-warning">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('notifications.delete_config', id=config.id) }}" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定要删除这个通知配置吗？')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-bell fa-3x text-muted mb-3"></i>
+    <h3 class="text-muted">暂无通知配置</h3>
+    <p class="text-muted">点击上方按钮添加您的第一个通知配置</p>
+    <a href="{{ url_for('notifications.new_config') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> 添加通知配置
+    </a>
+</div>
+{% endif %}
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">通知说明</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-link text-info"></i> Webhook通知</h6>
+                        <p class="text-muted">配置Webhook URL，系统会向该URL发送POST请求，包含通知内容。</p>
+                        <ul class="text-muted">
+                            <li>支持自定义Webhook服务</li>
+                            <li>可集成钉钉、飞书等平台</li>
+                            <li>支持自定义消息格式</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-robot text-success"></i> 企业微信机器人</h6>
+                        <p class="text-muted">配置企业微信机器人Webhook Key，系统会发送消息到企业微信群。</p>
+                        <ul class="text-muted">
+                            <li>支持企业微信群通知</li>
+                            <li>自动格式化消息内容</li>
+                            <li>支持@指定成员</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 测试通知状态指示器 -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="notificationTestIndicator" class="toast" role="alert" aria-live="assertive" aria-atomic="true" style="display: none;">
+        <div class="toast-header">
+            <i class="fas fa-paper-plane text-primary me-2"></i>
+            <strong class="me-auto">测试通知</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <div id="notificationTestStatus">正在发送测试通知...</div>
+            <div id="notificationTestProgress" class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%"></div>
+            </div>
+            <div id="notificationTestResult" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 测试通知功能
+    document.querySelectorAll('.test-notification-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const configId = this.getAttribute('data-config-id');
+            const configName = this.getAttribute('data-config-name');
+            
+            // 防止重复点击
+            if (this.disabled) return;
+            
+            // 更新按钮状态
+            this.disabled = true;
+            this.classList.remove('btn-outline-info');
+            this.classList.add('btn-secondary');
+            this.querySelector('.fas.fa-paper-plane').style.display = 'none';
+            this.querySelector('.test-status-indicator').style.display = 'inline';
+            
+            // 显示测试状态
+            showNotificationTestProgress(`正在测试 ${configName}...`);
+            
+            // 发送测试请求
+            fetch('{{ url_for("notifications.test_notification") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `config_id=${configId}`
+            })
+            .then(response => response.text())
+            .then(data => {
+                handleNotificationTestResult(data, configName);
+            })
+            .catch(error => {
+                handleNotificationTestError(error, configName);
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                resetNotificationTestButtonState(this);
+            });
+        });
+    });
+    
+    // 显示通知测试进度
+    function showNotificationTestProgress(message) {
+        const indicator = document.getElementById('notificationTestIndicator');
+        const progress = document.getElementById('notificationTestProgress');
+        const result = document.getElementById('notificationTestResult');
+        const status = document.getElementById('notificationTestStatus');
+        
+        status.textContent = message;
+        progress.style.display = 'block';
+        result.style.display = 'none';
+        
+        const toast = new bootstrap.Toast(indicator);
+        toast.show();
+    }
+    
+    // 处理通知测试结果
+    function handleNotificationTestResult(data, configName) {
+        const indicator = document.getElementById('notificationTestIndicator');
+        const progress = document.getElementById('notificationTestProgress');
+        const result = document.getElementById('notificationTestResult');
+        const status = document.getElementById('notificationTestStatus');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        // 检查是否包含成功或失败的关键词
+        if (data.includes('发送成功') || data.includes('success')) {
+            status.innerHTML = '<i class="fas fa-check-circle text-success me-2"></i><strong>测试成功</strong>';
+            result.innerHTML = `
+                <div class="notification-test-result-success">
+                    <div class="mt-2">
+                        <strong>配置名称:</strong> ${configName}<br>
+                        <strong>状态:</strong> 测试通知已发送<br>
+                        <strong>提示:</strong> 请检查您的通知渠道是否收到消息
+                    </div>
+                </div>
+            `;
+        } else {
+            status.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-2"></i><strong>测试失败</strong>';
+            result.innerHTML = `
+                <div class="notification-test-result-error">
+                    <div class="mt-2">
+                        <strong>配置名称:</strong> ${configName}<br>
+                        <strong>状态:</strong> 测试通知发送失败<br>
+                        <strong>建议:</strong> 请检查网络连接和配置信息
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            const toast = bootstrap.Toast.getInstance(indicator);
+            if (toast) toast.hide();
+        }, 5000);
+    }
+    
+    // 处理通知测试错误
+    function handleNotificationTestError(error, configName) {
+        const indicator = document.getElementById('notificationTestIndicator');
+        const progress = document.getElementById('notificationTestProgress');
+        const result = document.getElementById('notificationTestResult');
+        const status = document.getElementById('notificationTestStatus');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        status.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-2"></i><strong>测试失败</strong>';
+        result.innerHTML = `
+            <div class="notification-test-result-error">
+                <div class="mt-2">
+                    <strong>配置名称:</strong> ${configName}<br>
+                    <strong>错误:</strong> 网络错误或服务器异常<br>
+                    <strong>详情:</strong> ${error.message}
+                </div>
+            </div>
+        `;
+        
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            const toast = bootstrap.Toast.getInstance(indicator);
+            if (toast) toast.hide();
+        }, 5000);
+    }
+    
+    // 重置通知测试按钮状态
+    function resetNotificationTestButtonState(button) {
+        button.disabled = false;
+        button.classList.remove('btn-secondary');
+        button.classList.add('btn-outline-info');
+        button.querySelector('.fas.fa-paper-plane').style.display = 'inline';
+        button.querySelector('.test-status-indicator').style.display = 'none';
+    }
+});
+</script>
+
+<style>
+.notification-test-result-success {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.notification-test-result-error {
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.test-notification-btn {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.test-notification-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.test-status-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #6c757d;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}编辑URL监控 - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">编辑URL监控</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('urls.show', id=url.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">URL名称 *</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               value="{{ url.name }}" placeholder="例如: 官网首页">
+                        <div class="form-text">请输入URL的标识名称</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="url" class="form-label">URL地址 *</label>
+                        <input type="url" class="form-control" id="url" name="url" required 
+                               value="{{ url.url }}" placeholder="例如: https://example.com">
+                        <div class="form-text">请输入完整的URL地址，包含协议前缀</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="添加URL描述信息">{{ url.description or '' }}</textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="check_interval" class="form-label">检查间隔（分钟）</label>
+                                <input type="number" class="form-control" id="check_interval" name="check_interval" 
+                                       value="{{ url.check_interval }}" min="1" max="1440">
+                                <div class="form-text">建议5-60分钟</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="timeout" class="form-label">超时时间（秒）</label>
+                                <input type="number" class="form-control" id="timeout" name="timeout" 
+                                       value="{{ url.timeout }}" min="1" max="60">
+                                <div class="form-text">建议5-30秒</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="retry_count" class="form-label">重试次数</label>
+                                <input type="number" class="form-control" id="retry_count" name="retry_count" 
+                                       value="{{ url.retry_count }}" min="0" max="5">
+                                <div class="form-text">失败时重试次数</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h5>HTTP请求配置</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="method" class="form-label">请求方法</label>
+                                <select class="form-select" id="method" name="method">
+                                    <option value="GET" {% if url.method == 'GET' %}selected{% endif %}>GET</option>
+                                    <option value="POST" {% if url.method == 'POST' %}selected{% endif %}>POST</option>
+                                    <option value="PUT" {% if url.method == 'PUT' %}selected{% endif %}>PUT</option>
+                                    <option value="DELETE" {% if url.method == 'DELETE' %}selected{% endif %}>DELETE</option>
+                                    <option value="HEAD" {% if url.method == 'HEAD' %}selected{% endif %}>HEAD</option>
+                                    <option value="OPTIONS" {% if url.method == 'OPTIONS' %}selected{% endif %}>OPTIONS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="content_type" class="form-label">内容类型</label>
+                                <select class="form-select" id="content_type" name="content_type">
+                                    <option value="application/json" {% if url.content_type == 'application/json' %}selected{% endif %}>application/json</option>
+                                    <option value="application/x-www-form-urlencoded" {% if url.content_type == 'application/x-www-form-urlencoded' %}selected{% endif %}>application/x-www-form-urlencoded</option>
+                                    <option value="text/plain" {% if url.content_type == 'text/plain' %}selected{% endif %}>text/plain</option>
+                                    <option value="text/html" {% if url.content_type == 'text/html' %}selected{% endif %}>text/html</option>
+                                    <option value="multipart/form-data" {% if url.content_type == 'multipart/form-data' %}selected{% endif %}>multipart/form-data</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="headers" class="form-label">请求头（JSON格式）</label>
+                        <textarea class="form-control" id="headers" name="headers" rows="3" 
+                                  placeholder='{"User-Agent": "URL-Monitor/1.0", "Accept": "application/json"}'>{{ url.headers or '' }}</textarea>
+                        <div class="form-text">可选的HTTP请求头，JSON格式</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="body" class="form-label">请求体</label>
+                        <textarea class="form-control" id="body" name="body" rows="4" 
+                                  placeholder='{"key": "value"}'>{{ url.body or '' }}</textarea>
+                        <div class="form-text">POST/PUT请求的请求体内容</div>
+                    </div>
+                    
+                    <hr>
+                    <h5>验证配置</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="expected_status_codes" class="form-label">期望状态码</label>
+                                <input type="text" class="form-control" id="expected_status_codes" name="expected_status_codes" 
+                                       value="{{ url.expected_status_codes }}" placeholder="200,201,202">
+                                <div class="form-text">多个状态码用逗号分隔</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="response_time_threshold" class="form-label">响应时间阈值（秒）</label>
+                                <input type="number" class="form-control" id="response_time_threshold" name="response_time_threshold" 
+                                       value="{{ url.response_time_threshold }}" min="0.1" max="60" step="0.1">
+                                <div class="form-text">超过此时间视为异常</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h5>高级配置</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="follow_redirects" name="follow_redirects" 
+                                       {% if url.follow_redirects %}checked{% endif %}>
+                                <label class="form-check-label" for="follow_redirects">
+                                    跟随重定向
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="verify_ssl" name="verify_ssl" 
+                                       {% if url.verify_ssl %}checked{% endif %}>
+                                <label class="form-check-label" for="verify_ssl">
+                                    验证SSL证书
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="accept_invalid_cert" name="accept_invalid_cert"
+                                       {% if url.accept_invalid_cert %}checked{% endif %}>
+                                <label class="form-check-label" for="accept_invalid_cert">
+                                    接受无效证书
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h5>代理配置</h5>
+                    <div class="mb-3">
+                        <label for="proxy_id" class="form-label">使用代理</label>
+                        <select class="form-select" id="proxy_id" name="proxy_id">
+                            <option value="">不使用代理</option>
+                            {% for proxy in proxies %}
+                            <option value="{{ proxy.id }}" {% if url.proxy_id == proxy.id %}selected{% endif %}>
+                                {{ proxy.name }} ({{ proxy.type_display }}://{{ proxy.host }}:{{ proxy.port }})
+                                {% if not proxy.is_active or not proxy.is_working %}
+                                    - {{ proxy.status_display }}
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">选择用于此监控的代理服务器（可选）</div>
+                    </div>
+                    
+                    <hr>
+                    <h5>通知配置</h5>
+                    <div class="mb-3">
+                        <label for="notification_config_id" class="form-label">通知方式</label>
+                        <select class="form-select" id="notification_config_id" name="notification_config_id">
+                            <option value="">不发送通知</option>
+                            {% for config in notification_configs %}
+                            <option value="{{ config.id }}" {% if url.notification_config_id == config.id %}selected{% endif %}>
+                                {{ config.name }} ({{ config.type }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">选择检查异常时发送通知的方式</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('urls.show', id=url.id) }}" class="btn btn-secondary me-md-2">取消</a>
+                        <button type="submit" class="btn btn-primary">保存更改</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">编辑说明</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-info-circle text-info"></i> 修改URL名称不会影响检查功能</li>
+                    <li><i class="fas fa-link text-primary"></i> 修改URL地址后需要重新检查</li>
+                    <li><i class="fas fa-clock text-warning"></i> 检查间隔影响监控频率</li>
+                    <li><i class="fas fa-stopwatch text-success"></i> 超时时间影响检测响应速度</li>
+                    <li><i class="fas fa-network-wired text-info"></i> 代理配置支持HTTP/HTTPS/SOCKS</li>
+                    <li><i class="fas fa-bell text-danger"></i> 配置通知后异常情况会及时提醒</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const methodSelect = document.getElementById('method');
+    const bodyTextarea = document.getElementById('body');
+    const headersTextarea = document.getElementById('headers');
+    
+    // 根据请求方法显示/隐藏请求体
+    function toggleBodyField() {
+        const method = methodSelect.value;
+        const bodyRow = bodyTextarea.closest('.mb-3');
+        
+        if (['POST', 'PUT', 'PATCH'].includes(method)) {
+            bodyRow.style.display = 'block';
+        } else {
+            bodyRow.style.display = 'none';
+        }
+    }
+    
+    // 初始化时调用一次
+    toggleBodyField();
+    
+    // 监听方法变化
+    methodSelect.addEventListener('change', toggleBodyField);
+    
+    // JSON格式验证
+    function validateJSON(textarea, fieldName) {
+        const value = textarea.value.trim();
+        if (!value) {
+            textarea.classList.remove('is-invalid', 'is-valid');
+            return true;
+        }
+        
+        try {
+            JSON.parse(value);
+            textarea.classList.remove('is-invalid');
+            textarea.classList.add('is-valid');
+            return true;
+        } catch (e) {
+            textarea.classList.remove('is-valid');
+            textarea.classList.add('is-invalid');
+            return false;
+        }
+    }
+    
+    // 验证headers
+    headersTextarea.addEventListener('input', function() {
+        validateJSON(this, '请求头');
+    });
+    
+    // 验证body（仅当内容类型为JSON时）
+    const contentTypeSelect = document.getElementById('content_type');
+    bodyTextarea.addEventListener('input', function() {
+        if (contentTypeSelect.value === 'application/json') {
+            validateJSON(this, '请求体');
+        } else {
+            this.classList.remove('is-invalid', 'is-valid');
+        }
+    });
+    
+    // 监听内容类型变化
+    contentTypeSelect.addEventListener('change', function() {
+        if (this.value === 'application/json') {
+            validateJSON(bodyTextarea, '请求体');
+        } else {
+            bodyTextarea.classList.remove('is-invalid', 'is-valid');
+        }
+    });
+    
+    // 表单提交验证
+    document.querySelector('form').addEventListener('submit', function(e) {
+        let isValid = true;
+        
+        // 验证headers
+        if (!validateJSON(headersTextarea, '请求头')) {
+            isValid = false;
+        }
+        
+        // 验证body（如果是JSON格式）
+        if (contentTypeSelect.value === 'application/json' && !validateJSON(bodyTextarea, '请求体')) {
+            isValid = false;
+        }
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('请检查JSON格式错误');
+        }
+    });
+});
+</script>
+{% endblock %}

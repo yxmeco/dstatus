@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}编辑域名 - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">编辑域名</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('domains.show', id=domain.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+<script>
+function confirmClearCertificate() {
+    if (confirm('确定要清空SSL证书吗？此操作将删除所有证书文件和记录，并禁用SSL检查。')) {
+        // 创建表单并提交
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("domains.clear_certificate", id=domain.id) }}';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">域名名称 *</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               value="{{ domain.name }}" placeholder="例如: example.com">
+                        <div class="form-text">请输入域名，不包含协议前缀</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="添加域名描述信息">{{ domain.description or '' }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="check_whois" name="check_whois" 
+                                   {% if domain.check_whois %}checked{% endif %}>
+                            <label class="form-check-label" for="check_whois">
+                                启用WHOIS检查
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="check_access" name="check_access" 
+                                   {% if domain.check_access %}checked{% endif %}>
+                            <label class="form-check-label" for="check_access">
+                                启用访问检查
+                            </label>
+                        </div>
+                        <div class="form-text">检查域名的HTTPS可访问性，类似URL检查功能</div>
+                    </div>
+                    
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">SSL证书信息</h5>
+                        {% if domain.certificates %}
+                        <button type="button" class="btn btn-danger btn-sm" onclick="confirmClearCertificate()">
+                            <i class="fas fa-trash"></i> 清空证书
+                        </button>
+                        {% endif %}
+                    </div>
+                    
+                    {% if domain.certificates %}
+                    <div class="mb-3">
+                        <label class="form-label">当前证书</label>
+                        <div class="alert alert-info">
+                            <strong>颁发者:</strong> {{ domain.certificates[0].issuer or '未知' }}<br>
+                            <strong>主题:</strong> {{ domain.certificates[0].subject or '未知' }}<br>
+                            <strong>有效期至:</strong> {{ domain.certificates[0].not_after.strftime('%Y-%m-%d %H:%M:%S') if domain.certificates[0].not_after else '未知' }}<br>
+                            <strong>剩余天数:</strong> {{ domain.certificates[0].days_until_expiry or '未知' }} 天
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="cert_file" class="form-label">更新证书公钥文件 (.crt/.pem)</label>
+                        <input type="file" class="form-control" id="cert_file" name="cert_file" 
+                               accept=".crt,.pem,.cer">
+                        <div class="form-text">上传新的SSL证书公钥文件，系统将自动解析证书信息</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="key_file" class="form-label">更新私钥文件 (.key)</label>
+                        <input type="file" class="form-control" id="key_file" name="key_file" 
+                               accept=".key,.pem">
+                        <div class="form-text">上传新的SSL证书私钥文件</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="check_ssl" name="check_ssl" 
+                                   {% if domain.check_ssl %}checked{% endif %}>
+                            <label class="form-check-label" for="check_ssl">
+                                启用SSL证书检查
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h5>通知配置</h5>
+                    <div class="mb-3">
+                        <label for="notification_config_id" class="form-label">通知方式</label>
+                        <select class="form-select" id="notification_config_id" name="notification_config_id">
+                            <option value="">不发送通知</option>
+                            {% for config in notification_configs %}
+                            <option value="{{ config.id }}" {% if domain.notification_config_id == config.id %}selected{% endif %}>
+                                {{ config.name }} ({{ config.type }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">选择检查异常时发送通知的方式</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('domains.show', id=domain.id) }}" class="btn btn-secondary me-md-2">取消</a>
+                        <button type="submit" class="btn btn-primary">保存更改</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">编辑说明</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-info-circle text-info"></i> 修改域名名称会影响证书文件路径</li>
+                    <li><i class="fas fa-search text-warning"></i> WHOIS检查会定期验证域名注册状态</li>
+                    <li><i class="fas fa-globe text-primary"></i> 访问检查会验证域名的HTTPS可访问性</li>
+                    <li><i class="fas fa-certificate text-primary"></i> 上传新证书会替换现有证书</li>
+                    <li><i class="fas fa-trash text-danger"></i> 清空证书会删除所有证书文件和记录</li>
+                    <li><i class="fas fa-shield-alt text-success"></i> SSL检查会定期验证证书有效期</li>
+                    <li><i class="fas fa-bell text-danger"></i> 配置通知后异常情况会及时提醒</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

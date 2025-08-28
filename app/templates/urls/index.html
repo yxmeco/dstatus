@@ -1,0 +1,809 @@
+{% extends "base.html" %}
+
+{% block title %}URL监控 - 域名证书管理系统{% endblock %}
+
+{% block extra_css %}
+<style>
+.check-url-btn {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.check-url-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.check-status-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+}
+
+.url-status-update {
+    animation: statusUpdate 0.5s ease-in-out;
+}
+
+@keyframes statusUpdate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.toast {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: none;
+}
+
+.toast-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-bottom: none;
+}
+
+.toast-header .btn-close {
+    filter: invert(1);
+}
+
+.url-check-result-success {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.url-check-result-error {
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.url-table-row {
+    transition: background-color 0.3s ease;
+}
+
+.url-table-row:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.badge {
+    transition: all 0.3s ease;
+}
+
+.badge.bg-success {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+/* 10格可用性进度条样式（管道插入法） */
+.availability-progress {
+    display: flex;
+    gap: 1px;
+    height: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    position: relative;
+}
+
+/* 在常规屏幕下隐藏进度条，只显示百分比 */
+@media (max-width: 1200px) {
+    .availability-progress {
+        display: none;
+    }
+    
+    .availability-percentage {
+        font-weight: 600;
+        color: #495057;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        min-width: 45px;
+        text-align: center;
+    }
+}
+
+.availability-progress::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, 
+        rgba(0,0,0,0.02) 0%, 
+        rgba(0,0,0,0.01) 50%, 
+        rgba(0,0,0,0.02) 100%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.progress-bar-item {
+    flex: 1;
+    height: 100%;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
+}
+
+.progress-bar-item.success {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.progress-bar-item.failure {
+    background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.progress-bar-item.empty {
+    background: repeating-linear-gradient(
+        45deg,
+        #f8f9fa,
+        #f8f9fa 2px,
+        #e9ecef 2px,
+        #e9ecef 4px
+    );
+    border-right: 1px solid #dee2e6;
+    position: relative;
+}
+
+.progress-bar-item.empty::after {
+    content: '—';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #adb5bd;
+    font-size: 8px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.progress-bar-item:hover {
+    transform: scaleY(1.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 3;
+}
+
+.availability-percentage {
+    font-weight: 500;
+    min-width: 35px;
+    text-align: right;
+}
+
+/* 管道插入法容器 */
+.availability-container {
+    position: relative;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">URL监控</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('urls.new') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> 添加监控
+        </a>
+    </div>
+</div>
+
+<!-- 搜索和分页控制 -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form method="GET" action="{{ url_for('urls.index') }}" class="d-flex">
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" class="form-control" name="search" value="{{ search }}" 
+                       placeholder="搜索监控名称、URL或描述...">
+                <button type="submit" class="btn btn-outline-primary">搜索</button>
+                {% if search %}
+                <a href="{{ url_for('urls.index') }}" class="btn btn-outline-secondary">清除</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="d-flex align-items-center justify-content-end">
+            <label class="me-2">每页显示:</label>
+            <select class="form-select form-select-sm" style="width: auto;" onchange="changePerPage(this.value)">
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">总监控数</h6>
+                        <h3 class="mb-0">{{ urls|length }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-link fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">正常监控</h6>
+                        <h3 class="mb-0">{{ urls|selectattr('status_display', 'equalto', '正常')|list|length }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">异常监控</h6>
+                        <h3 class="mb-0">{{ urls|selectattr('status_display', 'equalto', '异常')|list|length }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-secondary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title">已禁用</h6>
+                        <h3 class="mb-0">{{ urls|selectattr('status_display', 'equalto', '已禁用')|list|length }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-pause-circle fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="table-container">
+    {% if urls %}
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-header-fusion">
+                <tr>
+                    <th><i class="fas fa-tag me-2"></i>监控名称</th>
+                    <th><i class="fas fa-link me-2"></i>URL</th>
+                    <th><i class="fas fa-signal me-2"></i>状态</th>
+                    <th><i class="fas fa-chart-line me-2"></i>可用性</th>
+                    <th><i class="fas fa-clock me-2"></i>平均响应时间</th>
+                    <th><i class="fas fa-calendar-check me-2"></i>最后检查</th>
+                    <th><i class="fas fa-sync-alt me-2"></i>检查间隔</th>
+                    <th><i class="fas fa-network-wired me-2"></i>代理配置</th>
+                    <th><i class="fas fa-bell me-2"></i>通知配置</th>
+                    <th><i class="fas fa-cogs me-2"></i>操作</th>
+                </tr>
+            </thead>
+                <tbody>
+                    {% for url in urls %}
+                    <tr class="url-table-row">
+                        <td>
+                            <strong>{{ url.name }}</strong>
+                            {% if url.description %}
+                            <br><small class="text-muted">{{ url.description }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-light text-dark me-2">{{ url.method }}</span>
+                                <a href="{{ url.url }}" target="_blank" class="text-decoration-none">
+                                    {{ url.url }}
+                                </a>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge {{ url.status_badge_class }}">
+                                {{ url.status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% set progress_data = url.availability_progress_data %}
+                            {% if progress_data.total_checks > 0 %}
+                            <div class="d-flex align-items-center">
+                                <div class="availability-container">
+                                    <div class="availability-progress me-2" style="width: 80px;">
+                                        {% for bar in progress_data.bars %}
+                                        <div class="progress-bar-item {{ bar.status }}" 
+                                             data-bs-toggle="tooltip" 
+                                             data-bs-placement="top" 
+                                             title="{{ bar.tooltip if bar.tooltip else '无数据' }}">
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <small class="availability-percentage" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-placement="top" 
+                                       title="基于最近{{ progress_data.total_checks }}次检查，成功{{ progress_data.successful_checks }}次">
+                                    {{ progress_data.percentage }}%
+                                </small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if url.average_response_time > 0 %}
+                            <span class="{% if url.average_response_time <= 1 %}text-success{% elif url.average_response_time <= 3 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ url.average_response_time }}s
+                            </span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if url.url_checks %}
+                            <small>{{ url.url_checks[-1].checked_at.strftime('%m-%d %H:%M') }}</small>
+                            {% else %}
+                            <span class="text-muted">未检查</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ url.check_interval }}分钟</small>
+                        </td>
+                        <td>
+                            {% if url.proxy %}
+                            <span class="badge bg-secondary">{{ url.proxy.name }}</span>
+                            <br><small class="text-muted">{{ url.proxy.type_display }}</small>
+                            {% else %}
+                            <span class="text-muted">无</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if url.notification_config %}
+                            <span class="badge bg-info">{{ url.notification_config.name }}</span>
+                            {% else %}
+                            <span class="text-muted">无</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('urls.show', id=url.id) }}" class="btn btn-outline-primary"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="查看详情">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ url_for('urls.edit', id=url.id) }}" class="btn btn-outline-warning"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="编辑监控">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-outline-info check-url-btn" 
+                                        data-url-id="{{ url.id }}" data-url-name="{{ url.name }}"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="立即检查">
+                                    <i class="fas fa-sync-alt"></i>
+                                    <span class="check-status-indicator" style="display: none;">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </span>
+                                </button>
+                                <form method="POST" action="{{ url_for('urls.toggle', id=url.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-secondary" 
+                                            data-bs-toggle="tooltip" data-bs-placement="top"
+                                            title="{{ '禁用' if url.is_active else '启用' }}">
+                                        <i class="fas fa-{{ 'pause' if url.is_active else 'play' }}"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('urls.delete', id=url.id) }}" class="d-inline"
+                                      onsubmit="return confirm('确定要删除这个监控吗？')">
+                                    <button type="submit" class="btn btn-outline-danger"
+                                            data-bs-toggle="tooltip" data-bs-placement="top" title="删除监控">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-link fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">暂无URL监控</h5>
+            <p class="text-muted">点击"添加监控"开始创建您的第一个URL监控</p>
+            <a href="{{ url_for('urls.new') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> 添加监控
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- URL检查状态指示器 -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="urlCheckIndicator" class="toast" role="alert" aria-live="assertive" aria-atomic="true" style="display: none; min-width: 400px;">
+        <div class="toast-header">
+            <i class="fas fa-sync-alt text-info me-2"></i>
+            <strong class="me-auto">URL检查</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <div id="urlCheckProgress" class="text-center">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                    <span class="visually-hidden">检查中...</span>
+                </div>
+                <span id="urlCheckStatus">正在检查URL连接...</span>
+            </div>
+            <div id="urlCheckResult" style="display: none;">
+                <div id="urlResultContent"></div>
+                <div id="urlResultDetails" class="mt-2" style="display: none;">
+                    <small class="text-muted">
+                        <div id="urlResponseTime"></div>
+                        <div id="urlStatusCode"></div>
+                        <div id="urlResponseSize"></div>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 分页组件 -->
+{% if pagination and pagination.pages > 1 %}
+<div class="row mt-4">
+    <div class="col-12">
+        <nav aria-label="URL监控分页">
+            <ul class="pagination justify-content-center">
+                <!-- 上一页 -->
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('urls.index', page=pagination.prev_num, search=search, per_page=per_page) }}">
+                        <i class="fas fa-chevron-left"></i> 上一页
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="fas fa-chevron-left"></i> 上一页</span>
+                </li>
+                {% endif %}
+
+                <!-- 页码 -->
+                {% for page_num in pagination.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
+                    {% if page_num %}
+                        {% if page_num != pagination.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('urls.index', page=page_num, search=search, per_page=per_page) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- 下一页 -->
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('urls.index', page=pagination.next_num, search=search, per_page=per_page) }}">
+                        下一页 <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">下一页 <i class="fas fa-chevron-right"></i></span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <!-- 分页信息 -->
+        <div class="text-center text-muted">
+            显示第 {{ pagination.first }} - {{ pagination.last }} 条，共 {{ pagination.total }} 条记录
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- URL检查结果模态框 -->
+<div class="modal fade" id="urlCheckResultModal" tabindex="-1" aria-labelledby="urlCheckResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="urlCheckResultModalLabel">
+                    <i class="fas fa-sync-alt me-2"></i>URL检查结果
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalUrlCheckResult"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="retryUrlCheckBtn" style="display: none;">
+                    <i class="fas fa-redo"></i> 重新检查
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentCheckUrlId = null;
+    let currentCheckUrlName = null;
+    
+    // URL检查功能
+    document.querySelectorAll('.check-url-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const urlId = this.getAttribute('data-url-id');
+            const urlName = this.getAttribute('data-url-name');
+            
+            // 防止重复点击
+            if (this.disabled) return;
+            
+            currentCheckUrlId = urlId;
+            currentCheckUrlName = urlName;
+            
+            // 更新按钮状态
+            this.disabled = true;
+            this.classList.remove('btn-outline-info');
+            this.classList.add('btn-info');
+            this.querySelector('.fas.fa-sync-alt').style.display = 'none';
+            this.querySelector('.check-status-indicator').style.display = 'inline';
+            
+            // 显示检查状态
+            showUrlCheckProgress(`正在检查 ${urlName}...`);
+            
+            // 发送检查请求
+            fetch(`/urls/${urlId}/check`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                handleUrlCheckResult(data, urlName);
+            })
+            .catch(error => {
+                handleUrlCheckError(error, urlName);
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                resetUrlCheckButtonState(this);
+            });
+        });
+    });
+    
+    // 显示URL检查进度
+    function showUrlCheckProgress(message) {
+        const indicator = document.getElementById('urlCheckIndicator');
+        const progress = document.getElementById('urlCheckProgress');
+        const result = document.getElementById('urlCheckResult');
+        const status = document.getElementById('urlCheckStatus');
+        
+        status.textContent = message;
+        progress.style.display = 'block';
+        result.style.display = 'none';
+        
+        const toast = new bootstrap.Toast(indicator);
+        toast.show();
+    }
+    
+    // 处理URL检查结果
+    function handleUrlCheckResult(data, urlName) {
+        const indicator = document.getElementById('urlCheckIndicator');
+        const progress = document.getElementById('urlCheckProgress');
+        const result = document.getElementById('urlCheckResult');
+        const resultContent = document.getElementById('urlResultContent');
+        const resultDetails = document.getElementById('urlResultDetails');
+        const responseTime = document.getElementById('urlResponseTime');
+        const statusCode = document.getElementById('urlStatusCode');
+        const responseSize = document.getElementById('urlResponseSize');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        if (data.status === 'success') {
+            resultContent.innerHTML = `
+                <div class="url-check-result-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>检查成功</strong>
+                    <div class="mt-2">${data.message}</div>
+                </div>
+            `;
+            
+            // 显示详细信息
+            if (data.response_time) {
+                responseTime.innerHTML = `<i class="fas fa-clock me-1"></i>响应时间: ${data.response_time.toFixed(2)}s`;
+                resultDetails.style.display = 'block';
+            }
+            
+            if (data.status_code) {
+                statusCode.innerHTML = `<i class="fas fa-code me-1"></i>状态码: ${data.status_code}`;
+                resultDetails.style.display = 'block';
+            }
+            
+            if (data.response_size) {
+                responseSize.innerHTML = `<i class="fas fa-weight me-1"></i>响应大小: ${data.response_size} bytes`;
+                resultDetails.style.display = 'block';
+            }
+            
+            // 更新表格中的URL状态
+            updateUrlStatusInTable(currentCheckUrlId, true, data.response_time);
+            
+        } else {
+            resultContent.innerHTML = `
+                <div class="url-check-result-error">
+                    <i class="fas fa-times-circle me-2"></i>
+                    <strong>检查失败</strong>
+                    <div class="mt-2">${data.message}</div>
+                </div>
+            `;
+            
+            // 更新表格中的URL状态
+            updateUrlStatusInTable(currentCheckUrlId, false);
+        }
+        
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            const toast = bootstrap.Toast.getInstance(indicator);
+            if (toast) toast.hide();
+        }, 5000);
+    }
+    
+    // 处理URL检查错误
+    function handleUrlCheckError(error, urlName) {
+        const indicator = document.getElementById('urlCheckIndicator');
+        const progress = document.getElementById('urlCheckProgress');
+        const result = document.getElementById('urlCheckResult');
+        const resultContent = document.getElementById('urlResultContent');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        resultContent.innerHTML = `
+            <div class="url-check-result-error">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>检查失败</strong>
+                <div class="mt-2">网络错误: ${error.message}</div>
+            </div>
+        `;
+        
+        // 更新表格中的URL状态
+        updateUrlStatusInTable(currentCheckUrlId, false);
+        
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            const toast = bootstrap.Toast.getInstance(indicator);
+            if (toast) toast.hide();
+        }, 5000);
+    }
+    
+    // 重置URL检查按钮状态
+    function resetUrlCheckButtonState(button) {
+        button.disabled = false;
+        button.classList.remove('btn-info');
+        button.classList.add('btn-outline-info');
+        button.querySelector('.fas.fa-sync-alt').style.display = 'inline';
+        button.querySelector('.check-status-indicator').style.display = 'none';
+    }
+    
+    // 更新表格中的URL状态
+    function updateUrlStatusInTable(urlId, isAvailable, responseTime = null) {
+        const row = document.querySelector(`[data-url-id="${urlId}"]`).closest('tr');
+        if (!row) return;
+        
+        const statusCell = row.querySelector('td:nth-child(3)');
+        const responseTimeCell = row.querySelector('td:nth-child(5)');
+        const lastCheckedCell = row.querySelector('td:nth-child(6)');
+        
+        if (statusCell) {
+            const badge = statusCell.querySelector('.badge');
+            if (badge) {
+                if (isAvailable) {
+                    badge.className = 'badge bg-success';
+                    badge.textContent = '正常';
+                    // 添加动画效果
+                    badge.classList.add('url-status-update');
+                    setTimeout(() => {
+                        badge.classList.remove('url-status-update');
+                    }, 500);
+                } else {
+                    badge.className = 'badge bg-danger';
+                    badge.textContent = '异常';
+                    // 添加动画效果
+                    badge.classList.add('url-status-update');
+                    setTimeout(() => {
+                        badge.classList.remove('url-status-update');
+                    }, 500);
+                }
+            }
+        }
+        
+        if (responseTimeCell && responseTime !== null) {
+            responseTimeCell.innerHTML = `<span class="text-success">${responseTime.toFixed(2)}s</span>`;
+            // 添加动画效果
+            responseTimeCell.classList.add('url-status-update');
+            setTimeout(() => {
+                responseTimeCell.classList.remove('url-status-update');
+            }, 500);
+        }
+        
+        if (lastCheckedCell) {
+            const now = new Date();
+            // 使用北京时区显示时间
+            const timeString = now.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Asia/Shanghai'
+            });
+            lastCheckedCell.innerHTML = `<small>${timeString}</small>`;
+            // 添加动画效果
+            lastCheckedCell.classList.add('url-status-update');
+            setTimeout(() => {
+                lastCheckedCell.classList.remove('url-status-update');
+            }, 500);
+        }
+    }
+    
+    // 重新检查按钮事件
+    document.getElementById('retryUrlCheckBtn').addEventListener('click', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('urlCheckResultModal'));
+        modal.hide();
+        
+        // 触发当前URL的检查按钮
+        const checkBtn = document.querySelector(`[data-url-id="${currentCheckUrlId}"]`);
+        if (checkBtn) {
+            checkBtn.click();
+        }
+    });
+});
+
+// 分页功能
+function changePerPage(value) {
+    const url = new URL(window.location);
+    url.searchParams.set('per_page', value);
+    url.searchParams.set('page', '1'); // 重置到第一页
+    window.location.href = url.toString();
+}
+</script>
+
+{% endblock %}

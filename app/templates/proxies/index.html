@@ -1,0 +1,635 @@
+{% extends "base.html" %}
+
+{% block title %}代理管理 - 域名证书管理系统{% endblock %}
+
+{% block extra_css %}
+<style>
+.test-proxy-btn {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.test-proxy-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.test-status-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+}
+
+.proxy-status-update {
+    animation: statusUpdate 0.5s ease-in-out;
+}
+
+@keyframes statusUpdate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.toast {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: none;
+}
+
+.toast-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-bottom: none;
+}
+
+.toast-header .btn-close {
+    filter: invert(1);
+}
+
+.test-result-success {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.test-result-error {
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.proxy-table-row {
+    transition: background-color 0.3s ease;
+}
+
+.proxy-table-row:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.badge {
+    transition: all 0.3s ease;
+}
+
+.badge.bg-success {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">代理管理</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('proxies.new') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> 添加代理
+        </a>
+    </div>
+</div>
+
+<!-- 搜索和分页控制 -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form method="GET" action="{{ url_for('proxies.index') }}" class="d-flex">
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" class="form-control" name="search" value="{{ search }}" 
+                       placeholder="搜索代理名称、地址或描述...">
+                <button type="submit" class="btn btn-outline-primary">搜索</button>
+                {% if search %}
+                <a href="{{ url_for('proxies.index') }}" class="btn btn-outline-secondary">清除</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="d-flex align-items-center justify-content-end">
+            <label class="me-2">每页显示:</label>
+            <select class="form-select form-select-sm" style="width: auto;" onchange="changePerPage(this.value)">
+                <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">{{ proxies|length }}</h5>
+                <p class="card-text">总代理数</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">{{ proxies|selectattr('is_active')|selectattr('is_working')|list|length }}</h5>
+                <p class="card-text">正常代理</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-danger">{{ proxies|selectattr('is_active')|rejectattr('is_working')|list|length }}</h5>
+                <p class="card-text">异常代理</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-secondary">{{ proxies|rejectattr('is_active')|list|length }}</h5>
+                <p class="card-text">已禁用</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 代理列表 -->
+<div class="table-container">
+        {% if proxies %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-header-fusion">
+                    <tr>
+                        <th><i class="fas fa-server me-2"></i>代理名称</th>
+                        <th><i class="fas fa-network-wired me-2"></i>类型</th>
+                        <th><i class="fas fa-map-marker-alt me-2"></i>地址</th>
+                        <th><i class="fas fa-signal me-2"></i>状态</th>
+                        <th><i class="fas fa-tachometer-alt me-2"></i>响应时间</th>
+                        <th><i class="fas fa-calendar-check me-2"></i>最后检查</th>
+                        <th><i class="fas fa-chart-bar me-2"></i>使用情况</th>
+                        <th><i class="fas fa-cogs me-2"></i>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for proxy in proxies %}
+                    <tr class="proxy-table-row">
+                        <td>
+                            <strong>{{ proxy.name }}</strong>
+                            {% if proxy.is_default %}
+                                <span class="badge bg-warning ms-1">默认</span>
+                            {% endif %}
+                            {% if proxy.description %}
+                                <br><small class="text-muted">{{ proxy.description }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-info">{{ proxy.type_display }}</span>
+                        </td>
+                        <td>
+                            <code>{{ proxy.host }}:{{ proxy.port }}</code>
+                            {% if proxy.username %}
+                                <br><small class="text-muted">用户: {{ proxy.username }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge {{ proxy.status_badge_class }}">{{ proxy.status_display }}</span>
+                        </td>
+                        <td>
+                            {% if proxy.response_time %}
+                                {{ "%.2f"|format(proxy.response_time) }}ms
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if proxy.last_checked %}
+                                {{ proxy.last_checked.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                <span class="text-muted">未检查</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set url_count = proxy.url_checks.count() %}
+                            {% if url_count > 0 %}
+                                <span class="badge bg-primary">{{ url_count }} 个URL</span>
+                            {% else %}
+                                <span class="text-muted">未使用</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <a href="{{ url_for('proxies.show', id=proxy.id) }}" 
+                                   class="btn btn-sm btn-outline-primary"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="查看详情">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{{ url_for('proxies.edit', id=proxy.id) }}" 
+                                   class="btn btn-sm btn-outline-secondary"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" title="编辑代理">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-info test-proxy-btn" 
+                                        data-proxy-id="{{ proxy.id }}" data-proxy-name="{{ proxy.name }}"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="测试连接">
+                                    <i class="fas fa-vial"></i>
+                                    <span class="test-status-indicator" style="display: none;">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </span>
+                                </button>
+                                <form method="POST" action="{{ url_for('proxies.toggle', id=proxy.id) }}" 
+                                      style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning"
+                                            data-bs-toggle="tooltip" data-bs-placement="top" 
+                                            title="{{ '禁用' if proxy.is_active else '启用' }}">
+                                        <i class="fas fa-{{ 'pause' if proxy.is_active else 'play' }}"></i>
+                                    </button>
+                                </form>
+                                {% if url_count == 0 %}
+                                <form method="POST" action="{{ url_for('proxies.delete', id=proxy.id) }}" 
+                                      style="display: inline;" 
+                                      onsubmit="return confirm('确定要删除这个代理吗？')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                            data-bs-toggle="tooltip" data-bs-placement="top" title="删除代理">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-network-wired fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">暂无代理</h5>
+            <p class="text-muted">点击"添加代理"开始配置您的代理服务器</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 代理测试状态指示器 -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="proxyTestIndicator" class="toast" role="alert" aria-live="assertive" aria-atomic="true" style="display: none; min-width: 350px;">
+        <div class="toast-header">
+            <i class="fas fa-vial text-info me-2"></i>
+            <strong class="me-auto">代理测试</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <div id="testProgress" class="text-center">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                    <span class="visually-hidden">测试中...</span>
+                </div>
+                <span id="testStatus">正在测试代理连接...</span>
+            </div>
+            <div id="testResult" style="display: none;">
+                <div id="resultContent"></div>
+                <div id="resultDetails" class="mt-2" style="display: none;">
+                    <small class="text-muted">
+                        <div id="responseTime"></div>
+                        <div id="ipInfo"></div>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 分页组件 -->
+{% if pagination and pagination.pages > 1 %}
+<div class="row mt-4">
+    <div class="col-12">
+        <nav aria-label="代理分页">
+            <ul class="pagination justify-content-center">
+                <!-- 上一页 -->
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('proxies.index', page=pagination.prev_num, search=search, per_page=per_page) }}">
+                        <i class="fas fa-chevron-left"></i> 上一页
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="fas fa-chevron-left"></i> 上一页</span>
+                </li>
+                {% endif %}
+
+                <!-- 页码 -->
+                {% for page_num in pagination.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
+                    {% if page_num %}
+                        {% if page_num != pagination.page %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('proxies.index', page=page_num, search=search, per_page=per_page) }}">{{ page_num }}</a>
+                        </li>
+                        {% else %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- 下一页 -->
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('proxies.index', page=pagination.next_num, search=search, per_page=per_page) }}">
+                        下一页 <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">下一页 <i class="fas fa-chevron-right"></i></span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <!-- 分页信息 -->
+        <div class="text-center text-muted">
+            显示第 {{ pagination.first }} - {{ pagination.last }} 条，共 {{ pagination.total }} 条记录
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 测试结果模态框 -->
+<div class="modal fade" id="testResultModal" tabindex="-1" aria-labelledby="testResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="testResultModalLabel">
+                    <i class="fas fa-vial me-2"></i>代理测试结果
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalTestResult"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="retryTestBtn" style="display: none;">
+                    <i class="fas fa-redo"></i> 重新测试
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentTestProxyId = null;
+    let currentTestProxyName = null;
+    
+    // 代理测试功能
+    document.querySelectorAll('.test-proxy-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const proxyId = this.getAttribute('data-proxy-id');
+            const proxyName = this.getAttribute('data-proxy-name');
+            
+            // 防止重复点击
+            if (this.disabled) return;
+            
+            currentTestProxyId = proxyId;
+            currentTestProxyName = proxyName;
+            
+            // 更新按钮状态
+            this.disabled = true;
+            this.classList.remove('btn-outline-info');
+            this.classList.add('btn-info');
+            this.querySelector('.fas.fa-vial').style.display = 'none';
+            this.querySelector('.test-status-indicator').style.display = 'inline';
+            
+            // 显示测试状态
+            showTestProgress(`正在测试代理 ${proxyName}...`);
+            
+            // 发送测试请求
+            fetch(`/proxies/${proxyId}/test`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                handleTestResult(data, proxyName);
+            })
+            .catch(error => {
+                handleTestError(error, proxyName);
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                resetButtonState(this);
+            });
+        });
+    });
+    
+    // 显示测试进度
+    function showTestProgress(message) {
+        const indicator = document.getElementById('proxyTestIndicator');
+        const progress = document.getElementById('testProgress');
+        const result = document.getElementById('testResult');
+        const status = document.getElementById('testStatus');
+        
+        status.textContent = message;
+        progress.style.display = 'block';
+        result.style.display = 'none';
+        
+        const toast = new bootstrap.Toast(indicator);
+        toast.show();
+    }
+    
+    // 处理测试结果
+    function handleTestResult(data, proxyName) {
+        const indicator = document.getElementById('proxyTestIndicator');
+        const progress = document.getElementById('testProgress');
+        const result = document.getElementById('testResult');
+        const resultContent = document.getElementById('resultContent');
+        const resultDetails = document.getElementById('resultDetails');
+        const responseTime = document.getElementById('responseTime');
+        const ipInfo = document.getElementById('ipInfo');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        if (data.status === 'success') {
+            resultContent.innerHTML = `
+                <div class="test-result-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>测试成功</strong>
+                    <div class="mt-2">${data.message}</div>
+                </div>
+            `;
+            
+            // 显示详细信息
+            if (data.response_time) {
+                responseTime.innerHTML = `<i class="fas fa-clock me-1"></i>响应时间: ${data.response_time.toFixed(2)}ms`;
+                resultDetails.style.display = 'block';
+            }
+            
+            if (data.ip_info && data.ip_info.origin) {
+                ipInfo.innerHTML = `<i class="fas fa-globe me-1"></i>IP地址: ${data.ip_info.origin}`;
+                resultDetails.style.display = 'block';
+            }
+            
+            // 更新表格中的代理状态
+            updateProxyStatusInTable(currentTestProxyId, true, data.response_time);
+            
+        } else {
+            resultContent.innerHTML = `
+                <div class="test-result-error">
+                    <i class="fas fa-times-circle me-2"></i>
+                    <strong>测试失败</strong>
+                    <div class="mt-2">${data.message}</div>
+                </div>
+            `;
+            
+            // 更新表格中的代理状态
+            updateProxyStatusInTable(currentTestProxyId, false);
+        }
+        
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            const toast = bootstrap.Toast.getInstance(indicator);
+            if (toast) toast.hide();
+        }, 5000);
+    }
+    
+    // 处理测试错误
+    function handleTestError(error, proxyName) {
+        const indicator = document.getElementById('proxyTestIndicator');
+        const progress = document.getElementById('testProgress');
+        const result = document.getElementById('testResult');
+        const resultContent = document.getElementById('resultContent');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        resultContent.innerHTML = `
+            <div class="test-result-error">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>测试失败</strong>
+                <div class="mt-2">网络错误: ${error.message}</div>
+            </div>
+        `;
+        
+        // 更新表格中的代理状态
+        updateProxyStatusInTable(currentTestProxyId, false);
+        
+        // 5秒后自动隐藏
+        setTimeout(() => {
+            const toast = bootstrap.Toast.getInstance(indicator);
+            if (toast) toast.hide();
+        }, 5000);
+    }
+    
+    // 重置按钮状态
+    function resetButtonState(button) {
+        button.disabled = false;
+        button.classList.remove('btn-info');
+        button.classList.add('btn-outline-info');
+        button.querySelector('.fas.fa-vial').style.display = 'inline';
+        button.querySelector('.test-status-indicator').style.display = 'none';
+    }
+    
+    // 更新表格中的代理状态
+    function updateProxyStatusInTable(proxyId, isWorking, responseTime = null) {
+        const row = document.querySelector(`[data-proxy-id="${proxyId}"]`).closest('tr');
+        if (!row) return;
+        
+        const statusCell = row.querySelector('td:nth-child(4)');
+        const responseTimeCell = row.querySelector('td:nth-child(5)');
+        const lastCheckedCell = row.querySelector('td:nth-child(6)');
+        
+        if (statusCell) {
+            const badge = statusCell.querySelector('.badge');
+            if (badge) {
+                if (isWorking) {
+                    badge.className = 'badge bg-success';
+                    badge.textContent = '正常';
+                    // 添加动画效果
+                    badge.classList.add('proxy-status-update');
+                    setTimeout(() => {
+                        badge.classList.remove('proxy-status-update');
+                    }, 500);
+                } else {
+                    badge.className = 'badge bg-danger';
+                    badge.textContent = '异常';
+                    // 添加动画效果
+                    badge.classList.add('proxy-status-update');
+                    setTimeout(() => {
+                        badge.classList.remove('proxy-status-update');
+                    }, 500);
+                }
+            }
+        }
+        
+        if (responseTimeCell && responseTime !== null) {
+            responseTimeCell.innerHTML = `${responseTime.toFixed(2)}ms`;
+            // 添加动画效果
+            responseTimeCell.classList.add('proxy-status-update');
+            setTimeout(() => {
+                responseTimeCell.classList.remove('proxy-status-update');
+            }, 500);
+        }
+        
+        if (lastCheckedCell) {
+            const now = new Date();
+            // 使用北京时区显示时间
+            const timeString = now.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Asia/Shanghai'
+            });
+            lastCheckedCell.innerHTML = `<small>${timeString}</small>`;
+            // 添加动画效果
+            lastCheckedCell.classList.add('proxy-status-update');
+            setTimeout(() => {
+                lastCheckedCell.classList.remove('proxy-status-update');
+            }, 500);
+        }
+    }
+    
+    // 重新测试按钮事件
+    document.getElementById('retryTestBtn').addEventListener('click', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('testResultModal'));
+        modal.hide();
+        
+        // 触发当前代理的测试按钮
+        const testBtn = document.querySelector(`[data-proxy-id="${currentTestProxyId}"]`);
+        if (testBtn) {
+            testBtn.click();
+        }
+    });
+});
+
+// 分页功能
+function changePerPage(value) {
+    const url = new URL(window.location);
+    url.searchParams.set('per_page', value);
+    url.searchParams.set('page', '1'); // 重置到第一页
+    window.location.href = url.toString();
+}
+</script>
+{% endblock %}
+

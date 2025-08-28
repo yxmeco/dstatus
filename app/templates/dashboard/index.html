@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}仪表板 - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">仪表板</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('domains.new') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> 添加域名
+        </a>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            总域名数
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_domains }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-globe fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            即将到期
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ expiring_domains }}</div>
+                        <div class="text-xs text-muted">
+                            证书: {{ expiring_certs }} | 域名: {{ expiring_whois }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            总URL监控
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_urls }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-link fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-danger shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                            异常URL
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ unavailable_urls }}</div>
+                        <div class="text-xs text-muted">
+                            活跃监控中
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-times-circle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 域名状态统计 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-white">域名状态统计</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                            <h4 class="text-success">{{ status_stats.active }}</h4>
+                            <p class="text-muted mb-0">活跃域名</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                            <h4 class="text-warning">{{ status_stats.expiring_soon }}</h4>
+                            <p class="text-muted mb-0">即将到期</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
+                            <h4 class="text-danger">{{ status_stats.expired }}</h4>
+                            <p class="text-muted mb-0">已过期</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <div class="border rounded p-3">
+                            <i class="fas fa-question-circle fa-2x text-secondary mb-2"></i>
+                            <h4 class="text-secondary">{{ status_stats.unknown }}</h4>
+                            <p class="text-muted mb-0">未知状态</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 即将到期的证书 -->
+    <div class="col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-white">即将到期的证书</h6>
+            </div>
+            <div class="card-body">
+                {% if expiring_certificates %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>域名</th>
+                                    <th>剩余天数</th>
+                                    <th>到期时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cert in expiring_certificates %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('domains.show', id=cert.domain.id) }}">
+                                            {{ cert.domain.name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="{% if cert.days_until_expiry <= 7 %}text-danger{% elif cert.days_until_expiry <= 30 %}text-warning{% else %}text-success{% endif %}">
+                                            {{ cert.days_until_expiry }} 天
+                                        </span>
+                                    </td>
+                                    <td>{{ cert.not_after.strftime('%Y-%m-%d') if cert.not_after else '未知' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无即将到期的证书</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 即将到期的WHOIS -->
+    <div class="col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-white">即将到期的域名</h6>
+            </div>
+            <div class="card-body">
+                {% if expiring_whois_records %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>域名</th>
+                                    <th>剩余天数</th>
+                                    <th>到期时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for whois_record in expiring_whois_records %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('domains.show', id=whois_record.domain.id) }}">
+                                            {{ whois_record.domain.name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="{% if whois_record.days_until_expiry <= 7 %}text-danger{% elif whois_record.days_until_expiry <= 30 %}text-warning{% else %}text-success{% endif %}">
+                                            {{ whois_record.days_until_expiry }} 天
+                                        </span>
+                                    </td>
+                                    <td>{{ whois_record.expiration_date.strftime('%Y-%m-%d') if whois_record.expiration_date else '未知' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无即将到期的域名</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 最近通知 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-white">最近通知</h6>
+            </div>
+            <div class="card-body">
+                {% if recent_notifications %}
+                    <div class="list-group list-group-flush">
+                        {% for notification in recent_notifications %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">
+                                    {% if notification.type == 'cert_expiry' %}
+                                        <i class="fas fa-shield-alt text-warning"></i>
+                                    {% elif notification.type == 'url_down' %}
+                                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                                    {% elif notification.type == 'whois_expiry' %}
+                                        <i class="fas fa-globe text-danger"></i>
+                                    {% else %}
+                                        <i class="fas fa-info-circle text-info"></i>
+                                    {% endif %}
+                                    {% if notification.domain %}
+                                        {{ notification.domain.name }}
+                                    {% elif notification.url %}
+                                        {{ notification.url.name }}
+                                    {% else %}
+                                        系统通知
+                                    {% endif %}
+                                </h6>
+                                <small class="text-muted">{{ notification.sent_at.strftime('%m-%d %H:%M') }}</small>
+                            </div>
+                            <p class="mb-1">{{ notification.message[:100] }}{% if notification.message|length > 100 %}...{% endif %}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无通知</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 快速操作 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 bg-white">
+                <h6 class="m-0 font-weight-bold text-white">快速操作</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('domains.new') }}" class="btn btn-primary btn-block w-100">
+                            <i class="fas fa-plus"></i> 添加域名
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('domains.index') }}" class="btn btn-info btn-block w-100">
+                            <i class="fas fa-list"></i> 查看所有域名
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('urls.index') }}" class="btn btn-success btn-block w-100">
+                            <i class="fas fa-link"></i> 管理URL
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('notifications.config') }}" class="btn btn-warning btn-block w-100">
+                            <i class="fas fa-bell"></i> 通知配置
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

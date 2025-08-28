@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}通知历史 - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">通知历史</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('notifications.config') }}" class="btn btn-secondary">
+            <i class="fas fa-cog"></i> 通知配置
+        </a>
+    </div>
+</div>
+
+{% if notifications %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>时间</th>
+                <th>类型</th>
+                <th>相关对象</th>
+                <th>消息内容</th>
+                <th>状态</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for notification in notifications %}
+            <tr>
+                <td>{{ notification.sent_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>
+                    {% if notification.type == 'cert_expiry' %}
+                        <span class="badge bg-warning">证书到期</span>
+                    {% elif notification.type == 'whois_expiry' %}
+                        <span class="badge bg-danger">WHOIS到期</span>
+                    {% elif notification.type == 'url_down' %}
+                        <span class="badge bg-danger">URL异常</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ notification.type }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if notification.domain %}
+                        <a href="{{ url_for('domains.show', id=notification.domain.id) }}">
+                            {{ notification.domain.name }}
+                        </a>
+                    {% elif notification.url %}
+                        <a href="{{ url_for('urls.show', id=notification.url.id) }}">
+                            {{ notification.url.name }}
+                        </a>
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="text-truncate" style="max-width: 300px;" title="{{ notification.message }}">
+                        {{ notification.message[:100] }}{% if notification.message|length > 100 %}...{% endif %}
+                    </div>
+                </td>
+                <td>
+                    {% if notification.is_read %}
+                        <span class="badge bg-secondary">已读</span>
+                    {% else %}
+                        <span class="badge bg-primary">未读</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 分页 -->
+<nav aria-label="通知历史分页">
+    <ul class="pagination justify-content-center">
+        <li class="page-item disabled">
+            <span class="page-link">共 {{ notifications|length }} 条记录</span>
+        </li>
+    </ul>
+</nav>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+    <h3 class="text-muted">暂无通知记录</h3>
+    <p class="text-muted">当系统检测到异常时会自动发送通知</p>
+    <a href="{{ url_for('notifications.config') }}" class="btn btn-primary">
+        <i class="fas fa-cog"></i> 配置通知
+    </a>
+</div>
+{% endif %}
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">通知类型说明</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-certificate text-warning"></i> 证书到期通知</h6>
+                        <p class="text-muted">当SSL证书即将到期时发送通知，提醒及时更新证书。</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-search text-danger"></i> WHOIS到期通知</h6>
+                        <p class="text-muted">当域名注册即将到期时发送通知，提醒及时续费域名。</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-link text-danger"></i> URL异常通知</h6>
+                        <p class="text-muted">当监控的URL无法访问时发送通知，提醒检查网站状态。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

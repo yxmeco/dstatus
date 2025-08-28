@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}添加通知配置 - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">添加通知配置</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('notifications.config') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">配置名称 *</label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               placeholder="例如: 企业微信群通知">
+                        <div class="form-text">请输入通知配置的标识名称</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="type" class="form-label">通知类型 *</label>
+                        <select class="form-select" id="type" name="type" required>
+                            <option value="">请选择通知类型</option>
+                            <option value="webhook">Webhook</option>
+                            <option value="wechat_bot">企业微信机器人</option>
+                        </select>
+                        <div class="form-text">选择通知发送方式</div>
+                    </div>
+                    
+                    <div class="mb-3" id="webhook_config" style="display: none;">
+                        <label for="webhook_url" class="form-label">Webhook URL</label>
+                        <input type="url" class="form-control" id="webhook_url" name="webhook_url" 
+                               placeholder="例如: https://hooks.slack.com/services/xxx/yyy/zzz">
+                        <div class="form-text">输入Webhook的完整URL地址</div>
+                    </div>
+                    
+                    <div class="mb-3" id="wechat_config" style="display: none;">
+                        <label for="wechat_bot_key" class="form-label">企业微信机器人Key</label>
+                        <input type="text" class="form-control" id="wechat_bot_key" name="wechat_bot_key" 
+                               placeholder="例如: 12345678-1234-1234-1234-123456789012">
+                        <div class="form-text">输入企业微信机器人的Webhook Key</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('notifications.config') }}" class="btn btn-secondary me-md-2">取消</a>
+                        <button type="submit" class="btn btn-primary">添加配置</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">配置说明</h5>
+            </div>
+            <div class="card-body">
+                <div id="webhook_help" style="display: none;">
+                    <h6><i class="fas fa-link text-info"></i> Webhook配置</h6>
+                    <p class="text-muted">Webhook是一种通用的通知方式，支持多种平台：</p>
+                    <ul class="text-muted">
+                        <li>钉钉机器人</li>
+                        <li>飞书机器人</li>
+                        <li>Slack Webhook</li>
+                        <li>自定义服务</li>
+                    </ul>
+                </div>
+                
+                <div id="wechat_help" style="display: none;">
+                    <h6><i class="fas fa-robot text-success"></i> 企业微信机器人</h6>
+                    <p class="text-muted">企业微信机器人配置步骤：</p>
+                    <ol class="text-muted">
+                        <li>在企业微信群中添加机器人</li>
+                        <li>获取机器人的Webhook地址</li>
+                        <li>从URL中提取Key部分</li>
+                        <li>填入配置中</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('type').addEventListener('change', function() {
+    const type = this.value;
+    const webhookConfig = document.getElementById('webhook_config');
+    const wechatConfig = document.getElementById('wechat_config');
+    const webhookHelp = document.getElementById('webhook_help');
+    const wechatHelp = document.getElementById('wechat_help');
+    
+    // 隐藏所有配置
+    webhookConfig.style.display = 'none';
+    wechatConfig.style.display = 'none';
+    webhookHelp.style.display = 'none';
+    wechatHelp.style.display = 'none';
+    
+    // 显示对应配置
+    if (type === 'webhook') {
+        webhookConfig.style.display = 'block';
+        webhookHelp.style.display = 'block';
+    } else if (type === 'wechat_bot') {
+        wechatConfig.style.display = 'block';
+        wechatHelp.style.display = 'block';
+    }
+});
+</script>
+{% endblock %}

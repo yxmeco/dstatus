@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}添加URL监控 - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">添加URL监控</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('urls.index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">监控名称 *</label>
+                                <input type="text" class="form-control" id="name" name="name" required 
+                                       placeholder="例如: 官网首页监控">
+                                <div class="form-text">为这个监控起一个易于识别的名称</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="url" class="form-label">监控URL *</label>
+                                <input type="url" class="form-control" id="url" name="url" required 
+                                       placeholder="https://example.com">
+                                <div class="form-text">要监控的完整URL地址</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="2" 
+                                  placeholder="添加监控描述信息"></textarea>
+                    </div>
+                    
+                    <hr>
+                    <h5>基本配置</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="check_interval" class="form-label">检查间隔（分钟）</label>
+                                <input type="number" class="form-control" id="check_interval" name="check_interval" 
+                                       value="60" min="1" max="1440">
+                                <div class="form-text">建议5-60分钟</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="timeout" class="form-label">超时时间（秒）</label>
+                                <input type="number" class="form-control" id="timeout" name="timeout" 
+                                       value="10" min="1" max="60">
+                                <div class="form-text">建议5-30秒</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="retry_count" class="form-label">重试次数</label>
+                                <input type="number" class="form-control" id="retry_count" name="retry_count" 
+                                       value="1" min="0" max="5">
+                                <div class="form-text">失败时重试次数</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h5>HTTP请求配置</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="method" class="form-label">请求方法</label>
+                                <select class="form-select" id="method" name="method">
+                                    <option value="GET">GET</option>
+                                    <option value="POST">POST</option>
+                                    <option value="PUT">PUT</option>
+                                    <option value="DELETE">DELETE</option>
+                                    <option value="HEAD">HEAD</option>
+                                    <option value="OPTIONS">OPTIONS</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="content_type" class="form-label">内容类型</label>
+                                <select class="form-select" id="content_type" name="content_type">
+                                    <option value="application/json">application/json</option>
+                                    <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+                                    <option value="text/plain">text/plain</option>
+                                    <option value="text/html">text/html</option>
+                                    <option value="multipart/form-data">multipart/form-data</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="headers" class="form-label">请求头（JSON格式）</label>
+                        <textarea class="form-control" id="headers" name="headers" rows="3" 
+                                  placeholder='{"User-Agent": "URL-Monitor/1.0", "Accept": "application/json"}'></textarea>
+                        <div class="form-text">可选的HTTP请求头，JSON格式</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="body" class="form-label">请求体</label>
+                        <textarea class="form-control" id="body" name="body" rows="4" 
+                                  placeholder='{"key": "value"}'></textarea>
+                        <div class="form-text">POST/PUT请求的请求体内容</div>
+                    </div>
+                    
+                    <hr>
+                    <h5>验证配置</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="expected_status_codes" class="form-label">期望状态码</label>
+                                <input type="text" class="form-control" id="expected_status_codes" name="expected_status_codes" 
+                                       value="200" placeholder="200,201,202">
+                                <div class="form-text">多个状态码用逗号分隔</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="response_time_threshold" class="form-label">响应时间阈值（秒）</label>
+                                <input type="number" class="form-control" id="response_time_threshold" name="response_time_threshold" 
+                                       value="5.0" min="0.1" max="60" step="0.1">
+                                <div class="form-text">超过此时间视为异常</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+
+                    
+                    <hr>
+                    <h5>高级配置</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="follow_redirects" name="follow_redirects" checked>
+                                <label class="form-check-label" for="follow_redirects">
+                                    跟随重定向
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="verify_ssl" name="verify_ssl" checked>
+                                <label class="form-check-label" for="verify_ssl">
+                                    验证SSL证书
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="accept_invalid_cert" name="accept_invalid_cert">
+                                <label class="form-check-label" for="accept_invalid_cert">
+                                    接受无效证书
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    <h5>代理配置</h5>
+                    
+                    <div class="mb-3">
+                        <label for="proxy_id" class="form-label">使用代理</label>
+                        <select class="form-select" id="proxy_id" name="proxy_id">
+                            <option value="">不使用代理</option>
+                            {% for proxy in proxies %}
+                            <option value="{{ proxy.id }}">
+                                {{ proxy.name }} ({{ proxy.type_display }}://{{ proxy.host }}:{{ proxy.port }})
+                                {% if not proxy.is_active or not proxy.is_working %}
+                                    - {{ proxy.status_display }}
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">选择用于此监控的代理服务器（可选）</div>
+                    </div>
+                    
+                    <hr>
+                    <h5>通知配置</h5>
+                    
+                    <div class="mb-3">
+                        <label for="notification_config_id" class="form-label">通知方式</label>
+                        <select class="form-select" id="notification_config_id" name="notification_config_id">
+                            <option value="">不发送通知</option>
+                            {% for config in notification_configs %}
+                            <option value="{{ config.id }}">
+                                {{ config.name }} ({{ config.type }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">选择监控异常时发送通知的方式</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('urls.index') }}" class="btn btn-secondary me-md-2">取消</a>
+                        <button type="submit" class="btn btn-primary">创建监控</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">配置说明</h5>
+            </div>
+            <div class="card-body">
+                                 <ul class="list-unstyled">
+                     <li><i class="fas fa-clock text-primary"></i> <strong>检查间隔:</strong> 建议根据服务重要性设置</li>
+                     <li><i class="fas fa-stopwatch text-warning"></i> <strong>超时时间:</strong> 避免长时间等待</li>
+                     <li><i class="fas fa-redo text-info"></i> <strong>重试次数:</strong> 网络波动时自动重试</li>
+                     <li><i class="fas fa-code text-success"></i> <strong>HTTP方法:</strong> 支持GET、POST等</li>
+                     <li><i class="fas fa-check-circle text-success"></i> <strong>状态码验证:</strong> 确保返回正确状态</li>
+                     <li><i class="fas fa-tachometer-alt text-info"></i> <strong>响应时间:</strong> 监控服务性能</li>
+                     <li><i class="fas fa-shield-alt text-warning"></i> <strong>SSL验证:</strong> 确保连接安全</li>
+                     <li><i class="fas fa-network-wired text-info"></i> <strong>代理支持:</strong> 支持HTTP/HTTPS/SOCKS代理</li>
+                     <li><i class="fas fa-bell text-danger"></i> <strong>通知配置:</strong> 异常时及时提醒</li>
+                 </ul>
+            </div>
+        </div>
+        
+                 <div class="card mt-3">
+             <div class="card-header">
+                 <h5 class="card-title mb-0">使用示例</h5>
+             </div>
+             <div class="card-body">
+                 <h6>API监控</h6>
+                 <ul class="small">
+                     <li>方法: POST</li>
+                     <li>请求体: {"action": "ping"}</li>
+                     <li>期望状态码: 200</li>
+                     <li>响应时间阈值: 5秒</li>
+                 </ul>
+                 
+                 <h6>网页监控</h6>
+                 <ul class="small">
+                     <li>方法: GET</li>
+                     <li>期望状态码: 200</li>
+                     <li>响应时间阈值: 3秒</li>
+                     <li>检查间隔: 30分钟</li>
+                 </ul>
+                 
+                 <h6>健康检查</h6>
+                 <ul class="small">
+                     <li>方法: GET</li>
+                     <li>URL: https://api.example.com/health</li>
+                     <li>期望状态码: 200</li>
+                     <li>超时时间: 10秒</li>
+                     <li>重试次数: 2次</li>
+                 </ul>
+             </div>
+         </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const methodSelect = document.getElementById('method');
+    const bodyTextarea = document.getElementById('body');
+    const contentTypeSelect = document.getElementById('content_type');
+    
+    // 根据HTTP方法显示/隐藏请求体
+    function toggleBodyField() {
+        const method = methodSelect.value;
+        const bodyGroup = bodyTextarea.closest('.mb-3');
+        
+        if (['POST', 'PUT', 'PATCH'].includes(method)) {
+            bodyGroup.style.display = 'block';
+        } else {
+            bodyGroup.style.display = 'none';
+        }
+    }
+    
+    methodSelect.addEventListener('change', toggleBodyField);
+    toggleBodyField(); // 初始化状态
+    
+    // 验证JSON格式
+    function validateJSON(input, fieldName) {
+        if (input.value.trim()) {
+            try {
+                JSON.parse(input.value);
+                input.classList.remove('is-invalid');
+                input.classList.add('is-valid');
+            } catch (e) {
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
+                input.setCustomValidity(`${fieldName}格式错误，请输入有效的JSON`);
+            }
+        } else {
+            input.classList.remove('is-valid', 'is-invalid');
+            input.setCustomValidity('');
+        }
+    }
+    
+    // 监听JSON字段变化
+    document.getElementById('headers').addEventListener('input', function() {
+        validateJSON(this, '请求头');
+    });
+    
+    document.getElementById('body').addEventListener('input', function() {
+        if (['POST', 'PUT', 'PATCH'].includes(methodSelect.value) && 
+            contentTypeSelect.value === 'application/json') {
+            validateJSON(this, '请求体');
+        }
+    });
+});
+</script>
+{% endblock %}
