@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}编辑代理 - 域名证书管理系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">编辑代理</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('proxies.index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">代理名称 *</label>
+                                <input type="text" class="form-control" id="name" name="name" required 
+                                       value="{{ proxy.name }}" placeholder="例如: 公司代理服务器">
+                                <div class="form-text">为这个代理起一个易于识别的名称</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="type" class="form-label">代理类型 *</label>
+                                <select class="form-select" id="type" name="type" required>
+                                    <option value="">请选择代理类型</option>
+                                    <option value="http" {% if proxy.type == 'http' %}selected{% endif %}>HTTP</option>
+                                    <option value="https" {% if proxy.type == 'https' %}selected{% endif %}>HTTPS</option>
+                                    <option value="socks4" {% if proxy.type == 'socks4' %}selected{% endif %}>SOCKS4</option>
+                                    <option value="socks5" {% if proxy.type == 'socks5' %}selected{% endif %}>SOCKS5</option>
+                                </select>
+                                <div class="form-text">选择代理服务器类型</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label for="host" class="form-label">代理主机 *</label>
+                                <input type="text" class="form-control" id="host" name="host" required 
+                                       value="{{ proxy.host }}" placeholder="例如: proxy.company.com 或 192.168.1.100">
+                                <div class="form-text">代理服务器的IP地址或域名</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="port" class="form-label">端口 *</label>
+                                <input type="number" class="form-control" id="port" name="port" required 
+                                       min="1" max="65535" value="{{ proxy.port }}" placeholder="例如: 8080">
+                                <div class="form-text">代理服务器端口号</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">用户名</label>
+                                <input type="text" class="form-control" id="username" name="username" 
+                                       value="{{ proxy.username or '' }}" placeholder="代理用户名（可选）">
+                                <div class="form-text">如果代理需要认证，请输入用户名</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="password" class="form-label">密码</label>
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       placeholder="代理密码（可选，留空则不修改）">
+                                <div class="form-text">如果代理需要认证，请输入密码（留空则不修改原密码）</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="添加代理描述信息">{{ proxy.description or '' }}</textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" 
+                                       {% if proxy.is_active %}checked{% endif %}>
+                                <label class="form-check-label" for="is_active">
+                                    启用代理
+                                </label>
+                                <div class="form-text">启用或禁用此代理</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="is_default" name="is_default"
+                                       {% if proxy.is_default %}checked{% endif %}>
+                                <label class="form-check-label" for="is_default">
+                                    设为默认代理
+                                </label>
+                                <div class="form-text">设为默认代理（会取消其他默认代理）</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('proxies.index') }}" class="btn btn-secondary me-md-2">取消</a>
+                        <button type="submit" class="btn btn-primary">更新代理</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">代理类型说明</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="fas fa-globe text-primary"></i> <strong>HTTP:</strong> 最常用的代理类型
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-lock text-success"></i> <strong>HTTPS:</strong> 加密的HTTP代理
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-network-wired text-info"></i> <strong>SOCKS4:</strong> 通用代理协议
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-shield-alt text-warning"></i> <strong>SOCKS5:</strong> 支持认证的SOCKS代理
+                    </li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">当前代理信息</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td><strong>创建时间:</strong></td>
+                        <td>{{ proxy.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>最后更新:</strong></td>
+                        <td>{{ proxy.updated_at.strftime('%Y-%m-%d %H:%M:%S') if proxy.updated_at else '未知' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>状态:</strong></td>
+                        <td>
+                            {% if proxy.is_active %}
+                                <span class="badge bg-success">启用</span>
+                            {% else %}
+                                <span class="badge bg-secondary">禁用</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>默认代理:</strong></td>
+                        <td>
+                            {% if proxy.is_default %}
+                                <span class="badge bg-primary">是</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark">否</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">使用示例</h5>
+            </div>
+            <div class="card-body">
+                <h6>HTTP代理</h6>
+                <ul class="small">
+                    <li>主机: proxy.company.com</li>
+                    <li>端口: 8080</li>
+                    <li>类型: HTTP</li>
+                </ul>
+                
+                <h6>带认证的SOCKS5代理</h6>
+                <ul class="small">
+                    <li>主机: 192.168.1.100</li>
+                    <li>端口: 1080</li>
+                    <li>类型: SOCKS5</li>
+                    <li>用户名: user123</li>
+                    <li>密码: pass123</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 代理类型选择时的提示
+    const typeSelect = document.getElementById('type');
+    const portInput = document.getElementById('port');
+    
+    typeSelect.addEventListener('change', function() {
+        const type = this.value;
+        let defaultPort = '';
+        
+        switch(type) {
+            case 'http':
+                defaultPort = '8080';
+                break;
+            case 'https':
+                defaultPort = '8443';
+                break;
+            case 'socks4':
+            case 'socks5':
+                defaultPort = '1080';
+                break;
+        }
+        
+        if (defaultPort && !portInput.value) {
+            portInput.placeholder = `默认端口: ${defaultPort}`;
+        }
+    });
+});
+</script>
+{% endblock %}

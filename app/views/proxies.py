@@ -127,7 +127,7 @@ def edit(id):
         
         db.session.commit()
         flash('代理更新成功！', 'success')
-        return redirect(url_for('proxies.show', id=id))
+        return redirect(url_for('proxies.index'))
     
     return render_template('proxies/edit.html', proxy=proxy)
 
@@ -138,7 +138,7 @@ def delete(id):
     # 检查是否有URL监控在使用此代理
     if proxy.url_checks.count() > 0:
         flash('无法删除：有URL监控正在使用此代理', 'error')
-        return redirect(url_for('proxies.show', id=id))
+        return redirect(url_for('proxies.index'))
     
     db.session.delete(proxy)
     db.session.commit()

@@ -15,7 +15,7 @@ class Proxy(db.Model):
     is_active = db.Column(db.Boolean, default=True, comment='是否启用')
     is_default = db.Column(db.Boolean, default=False, comment='是否默认代理')
     last_checked = db.Column(db.DateTime, comment='最后检查时间')
-    is_working = db.Column(db.Boolean, default=True, comment='代理是否正常工作')
+    is_working = db.Column(db.Boolean, default=None, comment='代理是否正常工作，None表示未测试')
     response_time = db.Column(db.Float, comment='响应时间（毫秒）')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -55,6 +55,8 @@ class Proxy(db.Model):
         """获取状态显示文本"""
         if not self.is_active:
             return "已禁用"
+        elif self.is_working is None:
+            return "未知"
         elif not self.is_working:
             return "异常"
         else:
@@ -65,6 +67,8 @@ class Proxy(db.Model):
         """获取状态徽章样式类"""
         if not self.is_active:
             return "bg-secondary"
+        elif self.is_working is None:
+            return "bg-warning"
         elif not self.is_working:
             return "bg-danger"
         else:
