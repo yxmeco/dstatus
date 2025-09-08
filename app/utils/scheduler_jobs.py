@@ -4,6 +4,7 @@ from app.models.url import URL
 from app.services.ssl_checker import check_all_certificates
 from app.services.url_checker import check_all_urls
 from app.services.whois_checker import check_all_whois
+from app.services.domain_access_checker import check_all_domain_access
 from app.services.notifier import Notifier
 from datetime import datetime, timedelta
 from flask import current_app
@@ -34,6 +35,15 @@ def check_all_whois_job():
             print(f"[{datetime.utcnow()}] WHOIS检查完成")
         except Exception as e:
             print(f"[{datetime.utcnow()}] WHOIS检查失败: {str(e)}")
+
+def check_all_domain_access_job():
+    """检查所有域名的访问状态（备用功能）"""
+    with current_app.app_context():
+        try:
+            check_all_domain_access()
+            print(f"[{datetime.utcnow()}] 域名访问检查完成")
+        except Exception as e:
+            print(f"[{datetime.utcnow()}] 域名访问检查失败: {str(e)}")
 
 def send_daily_notifications_job():
     """发送每日通知汇总"""

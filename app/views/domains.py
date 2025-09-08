@@ -7,6 +7,7 @@ from app.services.ssl_checker import check_single_certificate
 from app.services.whois_checker import check_single_whois
 from app.services.domain_access_checker import check_single_domain_access
 from app.services.cert_parser import CertParser
+from app.utils.timezone import get_current_beijing_time
 from datetime import datetime
 import os
 import threading
@@ -112,9 +113,19 @@ def new():
                 certificate.serial_number = cert_info['serial_number']
                 certificate.not_before = cert_info['not_before']
                 certificate.not_after = cert_info['not_after']
-                certificate.days_until_expiry = (cert_info['not_after'] - datetime.utcnow()).days
+                
+                # 修复时区问题：确保两个datetime对象都是naive或都是aware
+                not_after = cert_info['not_after']
+                current_time = get_current_beijing_time()
+                
+                # 如果not_after是naive，将其转换为aware（假设为UTC）
+                if not_after.tzinfo is None:
+                    import pytz
+                    not_after = pytz.UTC.localize(not_after)
+                
+                certificate.days_until_expiry = (not_after - current_time).days
                 certificate.is_valid = True
-                certificate.last_checked = datetime.utcnow()
+                certificate.last_checked = get_current_beijing_time()
                 
                 # 保存域名信息
                 certificate.common_name = cert_info.get('common_name')
@@ -147,69 +158,70 @@ def new():
                 db.session.commit()
                 return render_template('domains/new.html', notification_configs=NotificationConfig.query.filter_by(is_active=True).all())
         
-        # 如果启用了WHOIS检查，立即创建WHOIS记录并设置为查询中状态
+        # 如果启用了WHOIS检查，异步进行WHOIS查询
         if check_whois:
-            # 立即创建WHOIS记录，设置为查询中状态
-            from app.services.whois_checker import WhoisChecker
-            whois_record = WhoisRecord.query.filter_by(domain_id=domain.id).first()
-            if not whois_record:
-                whois_record = WhoisRecord(domain_id=domain.id)
+            def perform_whois_check():
+                from app import create_app
+                app = create_app(init_scheduler=False)
+                with app.app_context():
+                    try:
+                        # 重新获取domain对象，避免会话绑定问题
+                        current_domain = Domain.query.get(domain.id)
+                        if current_domain:
+                            print(f"开始WHOIS检查: {current_domain.name}")
+                            result = check_single_whois(current_domain.id)
+                            if result:
+                                print(f"WHOIS检查成功: {current_domain.name}")
+                            else:
+                                print(f"WHOIS检查失败: {current_domain.name}")
+                        else:
+                            print(f"域名 {domain.name} 不存在")
+                    except Exception as e:
+                        print(f"WHOIS检查异常: {str(e)}")
             
-            whois_record.last_checked = datetime.utcnow()
-            whois_record.is_valid = False  # 暂时标记为无效，表示正在查询
-            whois_record.error_message = "查询中..."  # 临时错误信息表示查询中
-            whois_record.whois_server = "querying"
-            
-            db.session.add(whois_record)
-            db.session.commit()
-            
-            # 然后异步进行WHOIS查询
-            def async_whois_check():
-                try:
-                    from flask import current_app
-                    with current_app.app_context():
-                        WhoisChecker.update_whois_record(domain)
-                except Exception as e:
-                    print(f"异步WHOIS查询失败 {domain.name}: {str(e)}")
-            
-            # 启动异步线程
-            from flask import current_app
-            app_instance = current_app._get_current_object()
-            thread = threading.Thread(target=lambda: async_whois_check())
-            thread.daemon = True
+            thread = threading.Thread(target=perform_whois_check)
+            thread.daemon = False  # 改为非守护线程，确保线程能够完成
             thread.start()
+            
+            # 给线程更多时间开始执行，确保WHOIS检查能够完成
+            import time
+            time.sleep(0.5)  # 增加等待时间
         
-        # 如果启用了访问检查，立即创建访问记录并异步检查
+        # 如果启用了访问检查，自动创建URL监控项
         if check_access:
-            # 立即创建访问记录，设置为检查中状态
-            from app.models.notification import DomainAccessCheck
-            access_record = DomainAccessCheck.query.filter_by(domain_id=domain.id).first()
-            if not access_record:
-                access_record = DomainAccessCheck(domain_id=domain.id)
-            
-            access_record.last_checked = datetime.utcnow()
-            access_record.is_accessible = False  # 暂时标记为不可访问，表示正在检查
-            access_record.error_message = "检查中..."  # 临时错误信息表示检查中
-            
-            db.session.add(access_record)
-            db.session.commit()
-            
-            # 然后异步进行访问检查
-            def async_access_check():
-                try:
-                    from flask import current_app
-                    with current_app.app_context():
-                        from app.services.domain_access_checker import DomainAccessChecker
-                        DomainAccessChecker.update_domain_access_record(domain)
-                except Exception as e:
-                    print(f"异步访问检查失败 {domain.name}: {str(e)}")
-            
-            # 启动异步线程
-            from flask import current_app
-            app_instance = current_app._get_current_object()
-            thread = threading.Thread(target=lambda: async_access_check())
-            thread.daemon = True
-            thread.start()
+            try:
+                from app.models.url import URL
+                
+                # 创建官网URL监控项
+                website_url = URL(
+                    name=f"{domain.name} 官网监控",
+                    url=f"https://{domain.name}",
+                    description=f"域名 {domain.name} 的官网可用性监控",
+                    check_interval=1,  # 默认1分钟检查一次，与URL监控默认值保持一致
+                    timeout=10,  # 默认10秒超时
+                    retry_count=1,  # 默认重试1次
+                    method='GET',
+                    expected_status_codes='200',
+                    response_time_threshold=5.0,
+                    follow_redirects=True,
+                    verify_ssl=True,
+                    notification_config_id=domain.notification_config_id
+                )
+                
+                # 使用同一个会话添加URL监控项
+                db.session.add(website_url)
+                db.session.flush()  # 刷新以获取ID，但不提交
+                
+                # 关联到域名
+                domain.website_url_id = website_url.id
+                db.session.commit()  # 一次性提交所有更改
+                
+                flash('官网可用性监控已自动创建', 'success')
+                
+            except Exception as e:
+                db.session.rollback()  # 发生错误时回滚
+                flash(f'创建官网监控失败: {str(e)}', 'error')
+                print(f"创建官网监控失败: {str(e)}")
         
         flash('域名添加成功！', 'success')
         return redirect(url_for('domains.index'))
@@ -258,10 +270,14 @@ def check_async(id):
         if not checks_to_perform:
             return jsonify({'status': 'error', 'message': '没有启用任何检查项目'})
         
-        # 启动异步检查
-        def async_check_with_app(app_instance):
-            try:
-                with app_instance.app_context():
+
+        
+        # 启动异步线程
+        def perform_async_check():
+            from app import create_app
+            app = create_app(init_scheduler=False)
+            with app.app_context():
+                try:
                     results = []
                     
                     # 重新获取域名对象（在应用上下文中）
@@ -273,8 +289,7 @@ def check_async(id):
                     # 执行WHOIS检查
                     if current_domain.check_whois:
                         try:
-                            from app.services.whois_checker import WhoisChecker
-                            WhoisChecker.update_whois_record(current_domain)
+                            check_single_whois(current_domain.id)
                             results.append('WHOIS检查完成')
                         except Exception as e:
                             print(f'WHOIS检查失败: {str(e)}')
@@ -283,8 +298,7 @@ def check_async(id):
                     # 执行SSL证书检查
                     if current_domain.check_ssl and current_domain.certificates:
                         try:
-                            from app.services.ssl_checker import SSLChecker
-                            SSLChecker.update_certificate_info(current_domain)
+                            check_single_certificate(current_domain.id)
                             results.append('SSL证书检查完成')
                         except Exception as e:
                             print(f'SSL证书检查失败: {str(e)}')
@@ -293,22 +307,25 @@ def check_async(id):
                     # 执行访问检查
                     if current_domain.check_access:
                         try:
-                            from app.services.domain_access_checker import DomainAccessChecker
-                            DomainAccessChecker.update_domain_access_record(current_domain)
-                            results.append('访问检查完成')
+                            # 优先使用URL监控检查
+                            if current_domain.website_url_id:
+                                from app.services.url_checker import URLChecker
+                                URLChecker.check_single_url(current_domain.website_url_id)
+                                results.append('官网可用性检查完成')
+                            else:
+                                # 回退到旧的访问检查
+                                check_single_domain_access(current_domain.id)
+                                results.append('访问检查完成')
                         except Exception as e:
                             print(f'访问检查失败: {str(e)}')
                             results.append(f'访问检查失败: {str(e)}')
                     
                     print(f"域名 {current_domain.name} 异步检查完成: {', '.join(results)}")
                         
-            except Exception as e:
-                print(f"异步检查失败 {domain.name}: {str(e)}")
+                except Exception as e:
+                    print(f"异步检查失败 {domain.name}: {str(e)}")
         
-        # 启动异步线程，传递应用实例
-        from flask import current_app
-        app_instance = current_app._get_current_object()
-        thread = threading.Thread(target=lambda: async_check_with_app(app_instance))
+        thread = threading.Thread(target=perform_async_check)
         thread.daemon = True
         thread.start()
         
@@ -328,10 +345,13 @@ def check_whois_async(id):
     domain = Domain.query.get_or_404(id)
     
     def async_whois_check():
-        try:
-            check_single_whois(domain.id)
-        except Exception as e:
-            print(f"异步WHOIS查询失败 {domain.name}: {str(e)}")
+        from app import create_app
+        app = create_app(init_scheduler=False)
+        with app.app_context():
+            try:
+                check_single_whois(domain.id)
+            except Exception as e:
+                print(f"异步WHOIS查询失败 {domain.name}: {str(e)}")
     
     # 启动异步线程
     thread = threading.Thread(target=async_whois_check)
@@ -346,10 +366,13 @@ def check_access_async(id):
     domain = Domain.query.get_or_404(id)
     
     def async_access_check():
-        try:
-            check_single_domain_access(domain.id)
-        except Exception as e:
-            print(f"异步访问检查失败 {domain.name}: {str(e)}")
+        from app import create_app
+        app = create_app(init_scheduler=False)
+        with app.app_context():
+            try:
+                check_single_domain_access(domain.id)
+            except Exception as e:
+                print(f"异步访问检查失败 {domain.name}: {str(e)}")
     
     # 启动异步线程
     thread = threading.Thread(target=async_access_check)
@@ -373,69 +396,77 @@ def edit(id):
         notification_config_id = request.form.get('notification_config_id')
         domain.notification_config_id = notification_config_id if notification_config_id else None
         
-        # 如果启用了WHOIS检查且之前未启用，立即创建WHOIS记录并异步查询
+        # 如果启用了WHOIS检查且之前未启用，异步进行WHOIS查询
         if domain.check_whois and not old_check_whois:
-            # 立即创建WHOIS记录，设置为查询中状态
-            whois_record = WhoisRecord.query.filter_by(domain_id=domain.id).first()
-            if not whois_record:
-                whois_record = WhoisRecord(domain_id=domain.id)
+            def perform_whois_check():
+                from app import create_app
+                app = create_app(init_scheduler=False)
+                with app.app_context():
+                    try:
+                        # 重新获取domain对象，避免会话绑定问题
+                        current_domain = Domain.query.get(domain.id)
+                        if current_domain:
+                            check_single_whois(current_domain.id)
+                        else:
+                            print(f"域名 {domain.name} 不存在")
+                    except Exception as e:
+                        print(f"WHOIS检查失败: {str(e)}")
             
-            whois_record.last_checked = datetime.utcnow()
-            whois_record.is_valid = False  # 暂时标记为无效，表示正在查询
-            whois_record.error_message = "查询中..."  # 临时错误信息表示查询中
-            whois_record.whois_server = "querying"
-            
-            db.session.add(whois_record)
-            db.session.commit()
-            
-            # 然后异步进行WHOIS查询
-            def async_whois_check():
-                try:
-                    from flask import current_app
-                    with current_app.app_context():
-                        from app.services.whois_checker import WhoisChecker
-                        WhoisChecker.update_whois_record(domain)
-                except Exception as e:
-                    print(f"异步WHOIS查询失败 {domain.name}: {str(e)}")
-            
-            # 启动异步线程
-            from flask import current_app
-            app_instance = current_app._get_current_object()
-            thread = threading.Thread(target=lambda: async_whois_check())
+            thread = threading.Thread(target=perform_whois_check)
             thread.daemon = True
             thread.start()
         
-        # 如果启用了访问检查且之前未启用，立即创建访问记录并异步检查
+        # 如果启用了访问检查且之前未启用，创建URL监控项
         if domain.check_access and not old_check_access:
-            # 立即创建访问记录，设置为检查中状态
-            from app.models.notification import DomainAccessCheck
-            access_record = DomainAccessCheck.query.filter_by(domain_id=domain.id).first()
-            if not access_record:
-                access_record = DomainAccessCheck(domain_id=domain.id)
-            
-            access_record.last_checked = datetime.utcnow()
-            access_record.is_accessible = False  # 暂时标记为不可访问，表示正在检查
-            access_record.error_message = "检查中..."  # 临时错误信息表示检查中
-            
-            db.session.add(access_record)
-            db.session.commit()
-            
-            # 然后异步进行访问检查
-            def async_access_check():
-                try:
-                    from flask import current_app
-                    with current_app.app_context():
-                        from app.services.domain_access_checker import DomainAccessChecker
-                        DomainAccessChecker.update_domain_access_record(domain)
-                except Exception as e:
-                    print(f"异步访问检查失败 {domain.name}: {str(e)}")
-            
-            # 启动异步线程
-            from flask import current_app
-            app_instance = current_app._get_current_object()
-            thread = threading.Thread(target=lambda: async_access_check())
-            thread.daemon = True
-            thread.start()
+            try:
+                from app.models.url import URL
+                
+                # 检查是否已经有官网URL监控项
+                if not domain.website_url_id:
+                    # 创建官网URL监控项
+                    website_url = URL(
+                        name=f"{domain.name} 官网监控",
+                        url=f"https://{domain.name}",
+                        description=f"域名 {domain.name} 的官网可用性监控",
+                        check_interval=1,  # 默认1分钟检查一次，与URL监控默认值保持一致
+                        timeout=10,  # 默认10秒超时
+                        retry_count=1,  # 默认重试1次
+                        method='GET',
+                        expected_status_codes='200',
+                        response_time_threshold=5.0,
+                        follow_redirects=True,
+                        verify_ssl=True,
+                        notification_config_id=domain.notification_config_id
+                    )
+                    
+                    # 使用同一个会话添加URL监控项
+                    db.session.add(website_url)
+                    db.session.flush()  # 刷新以获取ID，但不提交
+                    
+                    # 关联到域名
+                    domain.website_url_id = website_url.id
+                    db.session.commit()  # 一次性提交所有更改
+                    
+                    flash('官网可用性监控已自动创建', 'success')
+                
+            except Exception as e:
+                db.session.rollback()  # 发生错误时回滚
+                flash(f'创建官网监控失败: {str(e)}', 'error')
+                print(f"创建官网监控失败: {str(e)}")
+        
+        # 如果禁用了访问检查，删除关联的URL监控项
+        elif not domain.check_access and old_check_access and domain.website_url_id:
+            try:
+                from app.models.url import URL
+                website_url = URL.query.get(domain.website_url_id)
+                if website_url:
+                    db.session.delete(website_url)
+                    domain.website_url_id = None
+                    db.session.commit()
+                    flash('官网可用性监控已删除', 'success')
+            except Exception as e:
+                flash(f'删除官网监控失败: {str(e)}', 'error')
+                print(f"删除官网监控失败: {str(e)}")
         
         # 处理证书文件更新
         cert_file = request.files.get('cert_file')
@@ -480,9 +511,19 @@ def edit(id):
                 certificate.serial_number = cert_info['serial_number']
                 certificate.not_before = cert_info['not_before']
                 certificate.not_after = cert_info['not_after']
-                certificate.days_until_expiry = (cert_info['not_after'] - datetime.utcnow()).days
+                
+                # 修复时区问题：确保两个datetime对象都是naive或都是aware
+                not_after = cert_info['not_after']
+                current_time = get_current_beijing_time()
+                
+                # 如果not_after是naive，将其转换为aware（假设为UTC）
+                if not_after.tzinfo is None:
+                    import pytz
+                    not_after = pytz.UTC.localize(not_after)
+                
+                certificate.days_until_expiry = (not_after - current_time).days
                 certificate.is_valid = True
-                certificate.last_checked = datetime.utcnow()
+                certificate.last_checked = get_current_beijing_time()
                 
                 # 更新域名信息
                 certificate.common_name = cert_info.get('common_name')
@@ -524,6 +565,13 @@ def delete(id):
             os.remove(certificate.cert_file_path)
         if certificate.key_file_path and os.path.exists(certificate.key_file_path):
             os.remove(certificate.key_file_path)
+    
+    # 删除关联的官网URL监控项
+    if domain.website_url_id:
+        from app.models.url import URL
+        website_url = URL.query.get(domain.website_url_id)
+        if website_url:
+            db.session.delete(website_url)
     
     db.session.delete(domain)
     db.session.commit()
@@ -607,28 +655,59 @@ def refresh_access(id):
             'message': '该域名未启用官网可用性检查功能'
         })
     
-    try:
-        # 在后台线程中执行访问检查
-        def perform_access_check():
-            from app import create_app
-            app = create_app(init_scheduler=False)
-            with app.app_context():
-                try:
-                    check_single_domain_access(domain.id)
-                except Exception as e:
-                    print(f"访问检查失败: {str(e)}")
-        
-        thread = threading.Thread(target=perform_access_check)
-        thread.daemon = True
-        thread.start()
-        
-        return jsonify({
-            'status': 'success',
-            'message': '官网可用性检查已开始，请稍后查看结果'
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'官网可用性刷新失败: {str(e)}'
-        })
+    # 优先使用URL监控检查
+    if domain.website_url_id:
+        try:
+            from app.services.url_checker import URLChecker
+            
+            # 在后台线程中执行URL检查
+            def perform_url_check():
+                from app import create_app
+                app = create_app(init_scheduler=False)
+                with app.app_context():
+                    try:
+                        URLChecker.check_single_url(domain.website_url_id)
+                    except Exception as e:
+                        print(f"URL检查失败: {str(e)}")
+            
+            thread = threading.Thread(target=perform_url_check)
+            thread.daemon = True
+            thread.start()
+            
+            return jsonify({
+                'status': 'success',
+                'message': '官网可用性检查已开始，请稍后查看结果'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': f'官网可用性刷新失败: {str(e)}'
+            })
+    else:
+        # 回退到旧的访问检查
+        try:
+            # 在后台线程中执行访问检查
+            def perform_access_check():
+                from app import create_app
+                app = create_app(init_scheduler=False)
+                with app.app_context():
+                    try:
+                        check_single_domain_access(domain.id)
+                    except Exception as e:
+                        print(f"访问检查失败: {str(e)}")
+            
+            thread = threading.Thread(target=perform_access_check)
+            thread.daemon = True
+            thread.start()
+            
+            return jsonify({
+                'status': 'success',
+                'message': '官网可用性检查已开始，请稍后查看结果'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'message': f'官网可用性刷新失败: {str(e)}'
+            })

@@ -51,8 +51,17 @@ class SSLChecker:
         cert_info = SSLChecker.get_certificate_info(domain.name)
         
         if cert_info.get('is_valid'):
-            # 计算剩余天数
-            days_until_expiry = (cert_info['not_after'] - datetime.utcnow()).days
+            # 计算剩余天数 - 修复时区问题
+            not_after = cert_info['not_after']
+            current_time = datetime.utcnow()
+            
+            # 如果not_after是naive，将其转换为aware（假设为UTC）
+            if not_after.tzinfo is None:
+                import pytz
+                not_after = pytz.UTC.localize(not_after)
+                current_time = pytz.UTC.localize(current_time)
+            
+            days_until_expiry = (not_after - current_time).days
             
             # 更新证书信息
             certificate.issuer = str(cert_info['issuer'])

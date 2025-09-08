@@ -6,6 +6,7 @@ from app.models.notification import WhoisRecord
 from app.models.domain import Domain
 from app import db
 from app.services.notifier import Notifier
+from app.utils.timezone import get_current_beijing_time
 
 class WhoisChecker:
     # 查询配置
@@ -491,66 +492,93 @@ class WhoisChecker:
     @staticmethod
     def update_whois_record(domain):
         """更新域名的WHOIS信息"""
-        # 首先创建或更新记录，标记为查询中
-        whois_record = WhoisRecord.query.filter_by(domain_id=domain.id).first()
-        if not whois_record:
-            whois_record = WhoisRecord(domain_id=domain.id)
-        
-        # 标记为查询中状态
-        whois_record.last_checked = datetime.utcnow()
-        whois_record.is_valid = False  # 暂时标记为无效，表示正在查询
-        whois_record.error_message = "查询中..."  # 临时错误信息表示查询中
-        whois_record.whois_server = "querying"
-        
-        db.session.add(whois_record)
-        db.session.commit()
-        
-        # 执行实际的WHOIS查询
-        whois_info = WhoisChecker.get_whois_info(domain.name)
-        
-        if whois_info.get('is_valid'):
-            # 计算剩余天数
-            expiration_date = whois_info['expiration_date']
-            if isinstance(expiration_date, list):
-                expiration_date = expiration_date[0]
+        try:
+            # 首先创建或更新记录，标记为查询中
+            whois_record = WhoisRecord.query.filter_by(domain_id=domain.id).first()
+            if not whois_record:
+                whois_record = WhoisRecord(domain_id=domain.id)
             
-            days_until_expiry = None
-            if expiration_date:
-                days_until_expiry = (expiration_date - datetime.utcnow()).days
-            
-            # 更新WHOIS信息
-            whois_record.registrar = whois_info['registrar']
-            whois_record.creation_date = whois_info['creation_date']
-            whois_record.expiration_date = expiration_date
-            whois_record.updated_date = whois_info['updated_date']
-            whois_record.status = str(whois_info['status']) if whois_info['status'] else None
-            whois_record.name_servers = str(whois_info['name_servers']) if whois_info['name_servers'] else None
-            whois_record.days_until_expiry = days_until_expiry
-            whois_record.last_checked = datetime.utcnow()
-            whois_record.is_valid = True  # 明确设置为True
-            whois_record.error_message = None  # 清除错误信息
-            
-            # 保存使用的WHOIS服务器信息
-            whois_record.whois_server = whois_info.get('server', 'unknown')
+            # 标记为查询中状态
+            whois_record.last_checked = get_current_beijing_time()
+            whois_record.is_valid = False  # 暂时标记为无效，表示正在查询
+            whois_record.error_message = "查询中..."  # 临时错误信息表示查询中
+            whois_record.whois_server = "querying"
             
             db.session.add(whois_record)
             db.session.commit()
             
-            # 检查是否需要发送通知
-            if whois_record.is_expiring_soon:
-                Notifier.send_whois_expiry_notification(domain, whois_record)
+            # 执行实际的WHOIS查询
+            whois_info = WhoisChecker.get_whois_info(domain.name)
             
-            return whois_record
-        else:
-            # 记录错误信息
-            whois_record.last_checked = datetime.utcnow()
-            whois_record.error_message = whois_info.get('error', '查询失败')
-            whois_record.is_valid = False  # 明确设置为False
-            whois_record.whois_server = whois_info.get('server', 'unknown')
+            if whois_info.get('is_valid'):
+                # 计算剩余天数
+                expiration_date = whois_info['expiration_date']
+                if isinstance(expiration_date, list):
+                    expiration_date = expiration_date[0]
+                
+                days_until_expiry = None
+                if expiration_date:
+                    # 确保两个时间都是naive datetime对象进行比较
+                    if expiration_date.tzinfo is not None:
+                        expiration_date = expiration_date.replace(tzinfo=None)
+                    current_time = get_current_beijing_time()
+                    if current_time.tzinfo is not None:
+                        current_time = current_time.replace(tzinfo=None)
+                    days_until_expiry = (expiration_date - current_time).days
+                
+                # 更新WHOIS信息
+                whois_record.registrar = whois_info['registrar']
+                whois_record.creation_date = whois_info['creation_date']
+                whois_record.expiration_date = expiration_date
+                whois_record.updated_date = whois_info['updated_date']
+                whois_record.status = str(whois_info['status']) if whois_info['status'] else None
+                whois_record.name_servers = str(whois_info['name_servers']) if whois_info['name_servers'] else None
+                whois_record.days_until_expiry = days_until_expiry
+                whois_record.last_checked = get_current_beijing_time()
+                whois_record.is_valid = True  # 明确设置为True
+                whois_record.error_message = None  # 清除错误信息
+                
+                # 保存使用的WHOIS服务器信息
+                whois_record.whois_server = whois_info.get('server', 'unknown')
+                
+                db.session.add(whois_record)
+                db.session.commit()
+                
+                # 检查是否需要发送通知
+                if whois_record.is_expiring_soon:
+                    # 重新获取domain对象以确保在正确的会话中
+                    current_domain = Domain.query.get(domain.id)
+                    if current_domain and current_domain.notification_config:
+                        Notifier.send_whois_expiry_notification(current_domain, whois_record)
+                
+                return whois_record
+            else:
+                # 记录错误信息
+                whois_record.last_checked = get_current_beijing_time()
+                whois_record.error_message = whois_info.get('error', '查询失败')
+                whois_record.is_valid = False  # 明确设置为False
+                whois_record.whois_server = whois_info.get('server', 'unknown')
+                
+                db.session.add(whois_record)
+                db.session.commit()
+                
+                return None
+                
+        except Exception as e:
+            # 确保即使出现异常也能更新状态
+            try:
+                whois_record = WhoisRecord.query.filter_by(domain_id=domain.id).first()
+                if whois_record:
+                    whois_record.last_checked = get_current_beijing_time()
+                    whois_record.error_message = f"查询异常: {str(e)}"
+                    whois_record.is_valid = False
+                    whois_record.whois_server = "error"
+                    db.session.add(whois_record)
+                    db.session.commit()
+            except Exception as db_error:
+                print(f"更新WHOIS记录状态失败: {str(db_error)}")
             
-            db.session.add(whois_record)
-            db.session.commit()
-            
+            print(f"WHOIS查询异常 {domain.name}: {str(e)}")
             return None
 
 def check_all_whois():
@@ -566,8 +594,93 @@ def check_all_whois():
 def check_single_whois(domain_id):
     """检查单个域名的WHOIS信息"""
     try:
+        # 重新获取domain对象，确保在正确的会话中
         domain = Domain.query.get(domain_id)
         if domain and domain.is_active and domain.check_whois:
-            WhoisChecker.update_whois_record(domain)
+            # 直接在这里执行WHOIS检查，避免传递domain对象
+            # 首先创建或更新记录，标记为查询中
+            whois_record = WhoisRecord.query.filter_by(domain_id=domain.id).first()
+            if not whois_record:
+                whois_record = WhoisRecord(domain_id=domain.id)
+            
+            # 标记为查询中状态
+            whois_record.last_checked = get_current_beijing_time()
+            whois_record.is_valid = False  # 暂时标记为无效，表示正在查询
+            whois_record.error_message = "查询中..."  # 临时错误信息表示查询中
+            whois_record.whois_server = "querying"
+            
+            db.session.add(whois_record)
+            db.session.commit()
+            
+            # 执行实际的WHOIS查询
+            whois_info = WhoisChecker.get_whois_info(domain.name)
+            
+            if whois_info.get('is_valid'):
+                # 计算剩余天数
+                expiration_date = whois_info['expiration_date']
+                if isinstance(expiration_date, list):
+                    expiration_date = expiration_date[0]
+                
+                days_until_expiry = None
+                if expiration_date:
+                    # 确保两个时间都是naive datetime对象进行比较
+                    if expiration_date.tzinfo is not None:
+                        expiration_date = expiration_date.replace(tzinfo=None)
+                    current_time = get_current_beijing_time()
+                    if current_time.tzinfo is not None:
+                        current_time = current_time.replace(tzinfo=None)
+                    days_until_expiry = (expiration_date - current_time).days
+                
+                # 更新WHOIS信息
+                whois_record.registrar = whois_info['registrar']
+                whois_record.creation_date = whois_info['creation_date']
+                whois_record.expiration_date = expiration_date
+                whois_record.updated_date = whois_info['updated_date']
+                whois_record.status = str(whois_info['status']) if whois_info['status'] else None
+                whois_record.name_servers = str(whois_info['name_servers']) if whois_info['name_servers'] else None
+                whois_record.days_until_expiry = days_until_expiry
+                whois_record.last_checked = get_current_beijing_time()
+                whois_record.is_valid = True  # 明确设置为True
+                whois_record.error_message = None  # 清除错误信息
+                
+                # 保存使用的WHOIS服务器信息
+                whois_record.whois_server = whois_info.get('server', 'unknown')
+                
+                db.session.add(whois_record)
+                db.session.commit()
+                
+                # 检查是否需要发送通知
+                if whois_record.is_expiring_soon:
+                    # 重新获取domain对象以确保在正确的会话中
+                    current_domain = Domain.query.get(domain_id)
+                    if current_domain and current_domain.notification_config:
+                        Notifier.send_whois_expiry_notification(current_domain, whois_record)
+                
+                return whois_record
+            else:
+                # 记录错误信息
+                whois_record.last_checked = get_current_beijing_time()
+                whois_record.error_message = whois_info.get('error', '查询失败')
+                whois_record.is_valid = False  # 明确设置为False
+                whois_record.whois_server = whois_info.get('server', 'unknown')
+                
+                db.session.add(whois_record)
+                db.session.commit()
+                
+                return None
     except Exception as e:
+        # 确保即使出现异常也能更新状态
+        try:
+            whois_record = WhoisRecord.query.filter_by(domain_id=domain_id).first()
+            if whois_record:
+                whois_record.last_checked = get_current_beijing_time()
+                whois_record.error_message = f"查询异常: {str(e)}"
+                whois_record.is_valid = False
+                whois_record.whois_server = "error"
+                db.session.add(whois_record)
+                db.session.commit()
+        except Exception as db_error:
+            print(f"更新WHOIS记录状态失败: {str(db_error)}")
+        
         print(f"检查WHOIS失败 {domain_id}: {str(e)}")
+        return None

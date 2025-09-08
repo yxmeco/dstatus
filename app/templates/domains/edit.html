@@ -58,10 +58,10 @@ function confirmClearCertificate() {
                             <input class="form-check-input" type="checkbox" id="check_access" name="check_access" 
                                    {% if domain.check_access %}checked{% endif %}>
                             <label class="form-check-label" for="check_access">
-                                启用访问检查
+                                启用URL监控
                             </label>
                         </div>
-                        <div class="form-text">检查域名的HTTPS可访问性，类似URL检查功能</div>
+                        <div class="form-text">自动在URL监控中添加该域名的HTTPS监控项</div>
                     </div>
                     
                     <hr>
@@ -143,7 +143,7 @@ function confirmClearCertificate() {
                 <ul class="list-unstyled">
                     <li><i class="fas fa-info-circle text-info"></i> 修改域名名称会影响证书文件路径</li>
                     <li><i class="fas fa-search text-warning"></i> WHOIS检查会定期验证域名注册状态</li>
-                    <li><i class="fas fa-globe text-primary"></i> 访问检查会验证域名的HTTPS可访问性</li>
+                    <li><i class="fas fa-globe text-primary"></i> URL监控会自动添加域名的HTTPS监控项</li>
                     <li><i class="fas fa-certificate text-primary"></i> 上传新证书会替换现有证书</li>
                     <li><i class="fas fa-trash text-danger"></i> 清空证书会删除所有证书文件和记录</li>
                     <li><i class="fas fa-shield-alt text-success"></i> SSL检查会定期验证证书有效期</li>

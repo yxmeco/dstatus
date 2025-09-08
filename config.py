@@ -4,7 +4,7 @@ import pytz
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///database.db'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///domain_cert_manager.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # 数据库连接池配置

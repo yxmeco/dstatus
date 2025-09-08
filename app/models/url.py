@@ -10,7 +10,7 @@ class URL(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     
     # 监控配置
-    check_interval = db.Column(db.Integer, default=60)  # 检查间隔（分钟）
+    check_interval = db.Column(db.Integer, default=1)  # 检查间隔（分钟）
     timeout = db.Column(db.Integer, default=10)  # 超时时间（秒）
     retry_count = db.Column(db.Integer, default=1)  # 重试次数
     
@@ -45,6 +45,7 @@ class URL(db.Model):
     url_checks = db.relationship('URLCheck', backref='url', lazy=True, cascade='all, delete-orphan')
     notification_config = db.relationship('NotificationConfig', backref='urls')
     proxy = db.relationship('Proxy', back_populates='url_checks')
+    # 注意：domain关联关系在Domain模型中定义，这里不需要重复定义
     
     @property
     def headers_dict(self):

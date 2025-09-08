@@ -9,6 +9,7 @@ class Domain(db.Model):
     check_ssl = db.Column(db.Boolean, default=True)
     check_whois = db.Column(db.Boolean, default=True)
     check_access = db.Column(db.Boolean, default=False)  # 新增：访问检查
+    website_url_id = db.Column(db.Integer, db.ForeignKey('url.id'), nullable=True)  # 关联的官网URL监控项
     notification_config_id = db.Column(db.Integer, db.ForeignKey('notification_config.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -17,6 +18,7 @@ class Domain(db.Model):
     certificates = db.relationship('Certificate', backref='domain', lazy=True, cascade='all, delete-orphan')
     whois_records = db.relationship('WhoisRecord', backref='domain', lazy=True, cascade='all, delete-orphan')
     access_checks = db.relationship('DomainAccessCheck', backref='domain', lazy=True, cascade='all, delete-orphan')  # 新增：访问检查记录
+    website_url = db.relationship('URL', backref='domain', foreign_keys=[website_url_id])  # 关联的官网URL监控项
     notification_config = db.relationship('NotificationConfig', backref='domains')
     
     @property
@@ -63,12 +65,26 @@ class Domain(db.Model):
     
     @property
     def access_status(self):
-        """获取最新的访问状态"""
+        """获取最新的访问状态（优先使用URL监控状态）"""
+        # 优先使用URL监控状态
+        if self.website_url and self.website_url.is_active:
+            if not self.website_url.url_checks:
+                return "unknown"
+            
+            latest_check = self.website_url.url_checks[-1]
+            if latest_check.is_available:
+                return "accessible"
+            else:
+                return "inaccessible"
+        
+        # 回退到旧的访问检查
         if not self.access_checks:
             return "unknown"
         
         latest_check = max(self.access_checks, key=lambda x: x.checked_at)
-        if latest_check.is_accessible:
+        if latest_check.is_accessible is None:
+            return "checking"  # 查询中状态
+        elif latest_check.is_accessible:
             return "accessible"
         else:
             return "inaccessible"
@@ -79,6 +95,7 @@ class Domain(db.Model):
         status_map = {
             "accessible": "可访问",
             "inaccessible": "不可访问",
+            "checking": "查询中",
             "unknown": "未检查"
         }
         return status_map.get(self.access_status, "未知")
@@ -89,18 +106,40 @@ class Domain(db.Model):
         status_map = {
             "accessible": "bg-success",
             "inaccessible": "bg-danger",
+            "checking": "bg-warning",
             "unknown": "bg-secondary"
         }
         return status_map.get(self.access_status, "bg-secondary")
     
     @property
     def latest_access_status_code(self):
-        """获取最新的访问检查状态码"""
+        """获取最新的访问检查状态码（优先使用URL监控状态）"""
+        # 优先使用URL监控状态
+        if self.website_url and self.website_url.is_active and self.website_url.url_checks:
+            latest_check = self.website_url.url_checks[-1]
+            return latest_check.status_code
+        
+        # 回退到旧的访问检查
         if not self.access_checks:
             return None
         
         latest_check = max(self.access_checks, key=lambda x: x.checked_at)
         return latest_check.status_code
+    
+    @property
+    def latest_access_check_time(self):
+        """获取最新的访问检查时间（优先使用URL监控时间）"""
+        # 优先使用URL监控时间
+        if self.website_url and self.website_url.is_active and self.website_url.url_checks:
+            latest_check = self.website_url.url_checks[-1]
+            return latest_check.checked_at
+        
+        # 回退到旧的访问检查
+        if not self.access_checks:
+            return None
+        
+        latest_check = max(self.access_checks, key=lambda x: x.checked_at)
+        return latest_check.checked_at
     
     def __repr__(self):
         return f'<Domain {self.name}>'

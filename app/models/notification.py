@@ -41,7 +41,7 @@ class DomainAccessCheck(db.Model):
     domain_id = db.Column(db.Integer, db.ForeignKey('domain.id'), nullable=False)
     status_code = db.Column(db.Integer)
     response_time = db.Column(db.Float)
-    is_accessible = db.Column(db.Boolean, default=True)
+    is_accessible = db.Column(db.Boolean, nullable=True)
     error_message = db.Column(db.Text)
     checked_at = db.Column(db.DateTime, default=get_current_beijing_time)
     
@@ -58,7 +58,7 @@ class WhoisRecord(db.Model):
     status = db.Column(db.String(255))
     name_servers = db.Column(db.Text)
     days_until_expiry = db.Column(db.Integer)
-    last_checked = db.Column(db.DateTime, default=datetime.utcnow)
+    last_checked = db.Column(db.DateTime, default=get_current_beijing_time)
     
     # 新增字段
     whois_server = db.Column(db.String(255))  # 使用的WHOIS服务器

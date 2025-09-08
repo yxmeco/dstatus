@@ -27,7 +27,7 @@
     <div class="col-md-6">
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">URL信息</h5>
+                <h5 class="card-title mb-0"><i class="fas fa-info-circle me-2"></i>URL信息</h5>
             </div>
             <div class="card-body">
                 <table class="table table-borderless">
@@ -37,7 +37,7 @@
                     </tr>
                     <tr>
                         <td><strong>URL地址:</strong></td>
-                        <td><a href="{{ url.url }}" target="_blank">{{ url.url }}</a></td>
+                        <td><a href="{{ url.url }}" target="_blank" class="text-decoration-none">{{ url.url }}</a></td>
                     </tr>
                     <tr>
                         <td><strong>描述:</strong></td>
@@ -70,47 +70,161 @@
         </div>
     </div>
 
-    <!-- 最新检查状态 -->
+    <!-- 代理和通知配置 -->
     <div class="col-md-6">
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">最新检查状态</h5>
+                <h5 class="card-title mb-0"><i class="fas fa-cogs me-2"></i>配置信息</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>代理配置:</strong></td>
+                        <td>
+                            {% if url.proxy %}
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-info me-2">{{ url.proxy.name }}</span>
+                                    <small class="text-muted">{{ url.proxy.type_display }}</small>
+                                </div>
+                                {% if url.proxy.host %}
+                                <div class="mt-1">
+                                    <small class="text-muted">{{ url.proxy.host }}:{{ url.proxy.port }}</small>
+                                </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">无</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>通知配置:</strong></td>
+                        <td>
+                            {% if url.notification_config %}
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-primary me-2">{{ url.notification_config.name }}</span>
+                                    <small class="text-muted">{{ url.notification_config.type }}</small>
+                                </div>
+                                {% if url.notification_config.description %}
+                                <div class="mt-1">
+                                    <small class="text-muted">{{ url.notification_config.description }}</small>
+                                </div>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">无</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>HTTP方法:</strong></td>
+                        <td>
+                            <span class="badge bg-secondary">{{ url.method }}</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>期望状态码:</strong></td>
+                        <td>
+                            <span class="badge bg-light text-dark">{{ url.expected_status_codes }}</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>响应时间阈值:</strong></td>
+                        <td>
+                            <span class="badge bg-light text-dark">{{ url.response_time_threshold }}秒</span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 最新检查状态 - 独占一行 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0"><i class="fas fa-chart-line me-2"></i>最新检查状态</h5>
             </div>
             <div class="card-body">
                 {% if url.url_checks %}
                     {% set latest_check = url.url_checks[-1] %}
-                    <table class="table table-borderless">
-                        <tr>
-                            <td><strong>状态:</strong></td>
-                            <td>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div class="mb-2">
+                                    {% if latest_check.is_available %}
+                                        <i class="fas fa-check-circle fa-3x text-success"></i>
+                                    {% else %}
+                                        <i class="fas fa-times-circle fa-3x text-danger"></i>
+                                    {% endif %}
+                                </div>
+                                <h6 class="mb-1">检查状态</h6>
                                 {% if latest_check.is_available %}
-                                    <span class="badge bg-success">正常</span>
+                                    <span class="badge bg-success fs-6">正常</span>
                                 {% else %}
-                                    <span class="badge bg-danger">异常</span>
+                                    <span class="badge bg-danger fs-6">异常</span>
                                 {% endif %}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>状态码:</strong></td>
-                            <td>{{ latest_check.status_code or 'N/A' }}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>响应时间:</strong></td>
-                            <td>{% if latest_check.response_time %}{{ "%.2f"|format(latest_check.response_time) }}秒{% else %}N/A{% endif %}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>检查时间:</strong></td>
-                            <td>{{ latest_check.checked_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                        </tr>
-                        {% if latest_check.error_message %}
-                        <tr>
-                            <td><strong>错误信息:</strong></td>
-                            <td class="text-danger">{{ latest_check.error_message }}</td>
-                        </tr>
-                        {% endif %}
-                    </table>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div class="mb-2">
+                                    <i class="fas fa-code fa-3x text-primary"></i>
+                                </div>
+                                <h6 class="mb-1">状态码</h6>
+                                {% if latest_check.status_code %}
+                                    <span class="badge {% if latest_check.status_code|int >= 200 and latest_check.status_code|int < 300 %}bg-success{% elif latest_check.status_code|int >= 300 and latest_check.status_code|int < 400 %}bg-warning{% else %}bg-danger{% endif %} fs-6">
+                                        {{ latest_check.status_code }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted fs-6">N/A</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div class="mb-2">
+                                    <i class="fas fa-tachometer-alt fa-3x {% if latest_check.response_time and latest_check.response_time <= 1 %}text-success{% elif latest_check.response_time and latest_check.response_time <= 3 %}text-warning{% else %}text-danger{% endif %}"></i>
+                                </div>
+                                <h6 class="mb-1">响应时间</h6>
+                                {% if latest_check.response_time %}
+                                    <span class="{% if latest_check.response_time <= 1 %}text-success{% elif latest_check.response_time <= 3 %}text-warning{% else %}text-danger{% endif %} fs-6 fw-bold">
+                                        {{ "%.2f"|format(latest_check.response_time) }}秒
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted fs-6">N/A</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div class="mb-2">
+                                    <i class="fas fa-clock fa-3x text-info"></i>
+                                </div>
+                                <h6 class="mb-1">检查时间</h6>
+                                <div class="fs-6">
+                                    <div class="fw-bold">{{ latest_check.checked_at.strftime('%m-%d %H:%M:%S') }}</div>
+                                    <small class="text-muted">{{ latest_check.checked_at.strftime('%Y') }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% if latest_check.error_message %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="alert alert-danger" role="alert">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>错误信息:</strong> {{ latest_check.error_message }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 {% else %}
-                    <p class="text-muted">暂无检查记录</p>
+                    <div class="text-center py-4">
+                        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">暂无检查记录</h5>
+                        <p class="text-muted">开始监控后，检查状态将显示在这里</p>
+                    </div>
                 {% endif %}
             </div>
         </div>
@@ -121,43 +235,175 @@
 <div class="row">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">检查历史</h5>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="fas fa-history me-2"></i>检查历史</h5>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" onclick="showHistoryView('table')">
+                        <i class="fas fa-table"></i> 表格视图
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="showHistoryView('timeline')">
+                        <i class="fas fa-stream"></i> 时间线视图
+                    </button>
+                </div>
             </div>
             <div class="card-body">
                 {% if url.url_checks %}
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>检查时间</th>
-                                    <th>状态</th>
-                                    <th>状态码</th>
-                                    <th>响应时间</th>
-                                    <th>错误信息</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for check in url.url_checks[-10:] %}
-                                <tr>
-                                    <td>{{ check.checked_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                                    <td>
-                                        {% if check.is_available %}
-                                            <span class="badge bg-success">正常</span>
-                                        {% else %}
-                                            <span class="badge bg-danger">异常</span>
+                    <!-- 表格视图 -->
+                    <div id="table-view" class="history-view">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th><i class="fas fa-clock me-1"></i>检查时间</th>
+                                        <th><i class="fas fa-signal me-1"></i>状态</th>
+                                        <th><i class="fas fa-code me-1"></i>状态码</th>
+                                        <th><i class="fas fa-tachometer-alt me-1"></i>响应时间</th>
+                                        <th><i class="fas fa-weight me-1"></i>响应大小</th>
+                                        <th><i class="fas fa-exclamation-triangle me-1"></i>错误信息</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for check in url.url_checks[-20:] %}
+                                    <tr class="{% if check.is_available %}table-success-light{% else %}table-danger-light{% endif %}">
+                                        <td>
+                                            <div class="d-flex flex-column">
+                                                <span class="fw-bold">{{ check.checked_at.strftime('%m-%d %H:%M:%S') }}</span>
+                                                <small class="text-muted">{{ check.checked_at.strftime('%Y') }}</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if check.is_available %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>正常
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-danger">
+                                                    <i class="fas fa-times me-1"></i>异常
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if check.status_code %}
+                                                <span class="badge {% if check.status_code|int >= 200 and check.status_code|int < 300 %}bg-success{% elif check.status_code|int >= 300 and check.status_code|int < 400 %}bg-warning{% else %}bg-danger{% endif %}">
+                                                    {{ check.status_code }}
+                                                </span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if check.response_time %}
+                                                <span class="{% if check.response_time <= 1 %}text-success{% elif check.response_time <= 3 %}text-warning{% else %}text-danger{% endif %}">
+                                                    <i class="fas fa-stopwatch me-1"></i>{{ "%.2f"|format(check.response_time) }}s
+                                                </span>
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if check.response_size %}
+                                                <span class="text-info">
+                                                    <i class="fas fa-weight me-1"></i>{{ check.response_size }}B
+                                                </span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if check.error_message %}
+                                                <span class="text-danger" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ check.error_message }}">
+                                                    <i class="fas fa-exclamation-triangle me-1"></i>{{ check.error_message[:30] }}{% if check.error_message|length > 30 %}...{% endif %}
+                                                </span>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 时间线视图 -->
+                    <div id="timeline-view" class="history-view" style="display: none;">
+                        <div class="timeline">
+                            {% for check in url.url_checks[-20:] %}
+                            <div class="timeline-item {% if check.is_available %}timeline-success{% else %}timeline-danger{% endif %}">
+                                <div class="timeline-marker">
+                                    {% if check.is_available %}
+                                        <i class="fas fa-check"></i>
+                                    {% else %}
+                                        <i class="fas fa-times"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="timeline-content">
+                                    <div class="timeline-header">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0">
+                                                {% if check.is_available %}
+                                                    <span class="text-success">检查成功</span>
+                                                {% else %}
+                                                    <span class="text-danger">检查失败</span>
+                                                {% endif %}
+                                            </h6>
+                                            <small class="text-muted">{{ check.checked_at.strftime('%m-%d %H:%M:%S') }}</small>
+                                        </div>
+                                    </div>
+                                    <div class="timeline-body">
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <small class="text-muted">状态码:</small>
+                                                {% if check.status_code %}
+                                                    <span class="badge {% if check.status_code|int >= 200 and check.status_code|int < 300 %}bg-success{% elif check.status_code|int >= 300 and check.status_code|int < 400 %}bg-warning{% else %}bg-danger{% endif %} ms-1">
+                                                        {{ check.status_code }}
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted ms-1">N/A</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="col-md-3">
+                                                <small class="text-muted">响应时间:</small>
+                                                {% if check.response_time %}
+                                                    <span class="{% if check.response_time <= 1 %}text-success{% elif check.response_time <= 3 %}text-warning{% else %}text-danger{% endif %} ms-1">
+                                                        {{ "%.2f"|format(check.response_time) }}s
+                                                    </span>
+                                                {% else %}
+                                                    <span class="text-muted ms-1">N/A</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="col-md-3">
+                                                <small class="text-muted">响应大小:</small>
+                                                {% if check.response_size %}
+                                                    <span class="text-info ms-1">{{ check.response_size }}B</span>
+                                                {% else %}
+                                                    <span class="text-muted ms-1">-</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="col-md-3">
+                                                <small class="text-muted">检查时间:</small>
+                                                <span class="text-muted ms-1">{{ check.checked_at.strftime('%Y-%m-%d') }}</span>
+                                            </div>
+                                        </div>
+                                        {% if check.error_message %}
+                                        <div class="mt-2">
+                                            <small class="text-danger">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>{{ check.error_message }}
+                                            </small>
+                                        </div>
                                         {% endif %}
-                                    </td>
-                                    <td>{{ check.status_code or '-' }}</td>
-                                    <td>{% if check.response_time %}{{ "%.2f"|format(check.response_time) }}s{% else %}N/A{% endif %}</td>
-                                    <td>{{ check.error_message or '-' }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 {% else %}
-                    <p class="text-muted">暂无检查历史</p>
+                    <div class="text-center py-5">
+                        <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">暂无检查历史</h5>
+                        <p class="text-muted">开始监控后，检查历史将显示在这里</p>
+                    </div>
                 {% endif %}
             </div>
         </div>
@@ -306,7 +552,35 @@ document.addEventListener('DOMContentLoaded', function() {
         button.querySelector('.fas.fa-sync-alt').style.display = 'inline';
         button.querySelector('.check-status-indicator').style.display = 'none';
     }
+    
+    // 初始化工具提示
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 });
+
+// 切换历史视图
+function showHistoryView(view) {
+    // 隐藏所有视图
+    document.querySelectorAll('.history-view').forEach(function(el) {
+        el.style.display = 'none';
+    });
+    
+    // 移除所有按钮的active状态
+    document.querySelectorAll('.btn-group .btn').forEach(function(btn) {
+        btn.classList.remove('active');
+    });
+    
+    // 显示选中的视图
+    if (view === 'table') {
+        document.getElementById('table-view').style.display = 'block';
+        document.querySelector('.btn-group .btn:first-child').classList.add('active');
+    } else if (view === 'timeline') {
+        document.getElementById('timeline-view').style.display = 'block';
+        document.querySelector('.btn-group .btn:last-child').classList.add('active');
+    }
+}
 </script>
 
 <style>
@@ -342,6 +616,104 @@ document.addEventListener('DOMContentLoaded', function() {
     left: 50%;
     transform: translate(-50%, -50%);
     color: white;
+}
+
+/* 表格视图样式 */
+.table-success-light {
+    background-color: rgba(25, 135, 84, 0.1);
+}
+
+.table-danger-light {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+/* 时间线视图样式 */
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 30px;
+    padding-left: 30px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -22px;
+    top: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    z-index: 1;
+}
+
+.timeline-success .timeline-marker {
+    background-color: #198754;
+}
+
+.timeline-danger .timeline-marker {
+    background-color: #dc3545;
+}
+
+.timeline-content {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.timeline-header {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.timeline-body {
+    font-size: 14px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .timeline {
+        padding-left: 20px;
+    }
+    
+    .timeline::before {
+        left: 10px;
+    }
+    
+    .timeline-item {
+        padding-left: 20px;
+    }
+    
+    .timeline-marker {
+        left: -17px;
+        width: 25px;
+        height: 25px;
+        font-size: 10px;
+    }
+    
+    .timeline-content {
+        padding: 15px;
+    }
 }
 </style>
 {% endblock %}

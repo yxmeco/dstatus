@@ -1,10 +1,11 @@
 import requests
 import json
 import time
-from datetime import datetime
-from app.models.url import URL
-from app.models.notification import URLCheck, Notification, NotificationConfig
+from datetime import datetime, timedelta
 from app import db
+from app.models.url import URL
+from app.models.notification import URLCheck
+from app.services.notifier import Notifier
 from app.utils.timezone import get_current_beijing_time
 
 class URLChecker:
@@ -13,20 +14,49 @@ class URLChecker:
     @staticmethod
     def check_single_url(url_id):
         """检查单个URL"""
-        url_obj = URL.query.get(url_id)
-        if not url_obj or not url_obj.is_active:
-            return
-        
-        # 执行检查
-        result = URLChecker._perform_check(url_obj)
-        
-        # 保存检查结果
-        URLChecker._save_check_result(url_obj, result)
-        
-        # 发送通知（如果需要）
-        if result['is_available'] == False and url_obj.notification_config:
-            URLChecker._send_notification(url_obj, result)
-    
+        try:
+            url_obj = URL.query.get(url_id)
+            if not url_obj or not url_obj.is_active:
+                return None
+            
+            # 执行检查
+            result = URLChecker._perform_check(url_obj)
+            
+            # 创建检查记录
+            check_record = URLCheck(
+                url_id=url_obj.id,
+                status_code=result['status_code'],
+                response_time=result['response_time'],
+                is_available=result['is_available'],
+                error_message=result['error_message'],
+                response_size=result['response_size'],
+                response_headers=json.dumps(result['response_headers']) if result['response_headers'] else None,
+                response_content=result['response_content'],
+                status_code_valid=result['status_code_valid'],
+                response_time_valid=result['response_time_valid'],
+                content_valid=result['content_valid'],
+                ssl_valid=result['ssl_valid'],
+                retry_count=result['retry_count'],
+                final_url=result['final_url'],
+                dns_time=result['dns_time'],
+                connect_time=result['connect_time'],
+                transfer_time=result['transfer_time'],
+                checked_at=get_current_beijing_time()
+            )
+            
+            db.session.add(check_record)
+            db.session.commit()
+            
+            # 如果检查失败且配置了通知，发送通知
+            if not result['is_available'] and url_obj.notification_config:
+                Notifier.send_url_down_notification(url_obj, check_record)
+            
+            return check_record
+            
+        except Exception as e:
+            print(f"检查URL失败 {url_id}: {str(e)}")
+            return None
+
     @staticmethod
     def check_all_urls():
         """检查所有活跃的URL"""
@@ -34,6 +64,48 @@ class URLChecker:
         for url_obj in urls:
             try:
                 URLChecker.check_single_url(url_obj.id)
+            except Exception as e:
+                print(f"检查URL失败 {url_obj.name}: {str(e)}")
+
+    @staticmethod
+    def check_urls_by_interval():
+        """根据检查间隔检查需要检查的URL"""
+        now = get_current_beijing_time()
+        urls = URL.query.filter_by(is_active=True).all()
+        
+        for url_obj in urls:
+            try:
+                # 获取最后一次检查时间
+                latest_check = URLCheck.query.filter_by(url_id=url_obj.id).order_by(URLCheck.checked_at.desc()).first()
+                
+                # 计算是否需要检查
+                should_check = False
+                if not latest_check:
+                    # 从未检查过，需要检查
+                    should_check = True
+                else:
+                    # 计算距离上次检查的时间间隔（分钟）
+                    # 确保两个时间都是aware datetime
+                    checked_at = latest_check.checked_at
+                    if checked_at.tzinfo is None:
+                        # 如果是naive datetime，假设是北京时区
+                        import pytz
+                        beijing_tz = pytz.timezone('Asia/Shanghai')
+                        checked_at = beijing_tz.localize(checked_at)
+                    
+                    time_diff = now - checked_at
+                    minutes_diff = time_diff.total_seconds() / 60
+                    
+                    # 如果超过检查间隔，则需要检查
+                    if minutes_diff >= url_obj.check_interval:
+                        should_check = True
+                
+                if should_check:
+                    print(f"检查URL: {url_obj.name} (间隔: {url_obj.check_interval}分钟)")
+                    URLChecker.check_single_url(url_obj.id)
+                else:
+                    print(f"跳过URL: {url_obj.name} (距离下次检查还有 {url_obj.check_interval - minutes_diff:.1f}分钟)")
+                    
             except Exception as e:
                 print(f"检查URL失败 {url_obj.name}: {str(e)}")
     
@@ -335,3 +407,7 @@ def check_single_url(url_id):
 def check_all_urls():
     """检查所有URL（向后兼容）"""
     URLChecker.check_all_urls()
+
+def check_urls_by_interval():
+    """根据检查间隔检查需要检查的URL（向后兼容）"""
+    URLChecker.check_urls_by_interval()

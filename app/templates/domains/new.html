@@ -43,10 +43,10 @@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="check_access" name="check_access">
                             <label class="form-check-label" for="check_access">
-                                启用访问检查
+                                启用URL监控
                             </label>
                         </div>
-                        <div class="form-text">检查域名的HTTPS可访问性，类似URL检查功能</div>
+                        <div class="form-text">自动在URL监控中添加该域名的HTTPS监控项</div>
                     </div>
                     
                     <hr>
@@ -105,7 +105,7 @@
                 <ul class="list-unstyled">
                     <li><i class="fas fa-info-circle text-info"></i> 域名名称用于标识，建议使用主域名</li>
                     <li><i class="fas fa-search text-warning"></i> WHOIS检查会定期验证域名注册状态</li>
-                    <li><i class="fas fa-globe text-primary"></i> 访问检查会验证域名的HTTPS可访问性</li>
+                    <li><i class="fas fa-globe text-primary"></i> URL监控会自动添加域名的HTTPS监控项</li>
                     <li><i class="fas fa-certificate text-primary"></i> 上传证书文件后系统自动解析信息</li>
                     <li><i class="fas fa-shield-alt text-success"></i> SSL检查会定期验证证书有效期</li>
                     <li><i class="fas fa-bell text-danger"></i> 配置通知后异常情况会及时提醒</li>
@@ -128,16 +128,16 @@
             </div>
         </div>
         
-        <!-- 访问检查状态 -->
+        <!-- URL监控状态 -->
         <div class="card mt-3" id="accessStatusCard" style="display: none;">
             <div class="card-header">
-                <h5 class="card-title mb-0">访问检查状态</h5>
+                <h5 class="card-title mb-0">URL监控状态</h5>
             </div>
             <div class="card-body">
                 <div id="accessStatusContent">
                     <div class="text-center">
                         <i class="fas fa-spinner fa-spin text-primary"></i>
-                        <p class="mt-2 mb-0">正在检查域名访问性...</p>
+                        <p class="mt-2 mb-0">正在创建URL监控项...</p>
                     </div>
                 </div>
             </div>
@@ -168,7 +168,7 @@ document.getElementById('domainForm').addEventListener('submit', function(e) {
         whoisStatusCard.style.display = 'block';
     }
     
-    // 如果启用了访问检查，显示检查状态
+    // 如果启用了URL监控，显示创建状态
     if (accessCheckbox.checked) {
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 添加中...';
@@ -194,7 +194,7 @@ document.getElementById('domainForm').addEventListener('submit', function(e) {
                 <div class="text-center">
                     <i class="fas fa-check-circle text-success"></i>
                     <p class="mt-2 mb-0">域名添加成功！</p>
-                    <small class="text-muted">访问检查将在后台进行</small>
+                    <small class="text-muted">URL监控项已创建，将在后台进行监控</small>
                 </div>
             `;
         }

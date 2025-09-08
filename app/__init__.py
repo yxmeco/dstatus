@@ -45,7 +45,12 @@ def register_scheduled_jobs(app):
     """注册定时任务"""
     from app.services.ssl_checker import check_all_certificates
     from app.services.whois_checker import check_all_whois
-    from app.services.url_checker import check_all_urls
+    
+    # 创建带应用上下文的URL检查函数
+    def check_urls_with_context():
+        with app.app_context():
+            from app.services.url_checker import check_urls_by_interval
+            check_urls_by_interval()
     
     with app.app_context():
         # 每天凌晨2点检查所有证书
@@ -68,12 +73,12 @@ def register_scheduled_jobs(app):
             replace_existing=True
         )
         
-        # 每小时检查所有URL
+        # 每分钟检查需要检查的URL（根据每个URL的check_interval设置）
         scheduler.add_job(
             id='check_urls',
-            func=check_all_urls,
-            trigger='cron',
-            minute=0,
+            func=check_urls_with_context,
+            trigger='interval',
+            minutes=1,
             replace_existing=True
         )
     

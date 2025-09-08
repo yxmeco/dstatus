@@ -4,6 +4,8 @@
 
 所有的功能都是基于cursor 使用Ai编写
 
+image.png
+
 ## 🌟 功能特性
 
 ### 核心功能
@@ -352,9 +354,9 @@ tail -f logs/error.log
 
 ## 📞 联系方式
 
-- 项目维护者: [Your Name]
-- 邮箱: [your-email@example.com]
-- 项目地址: [https://github.com/your-username/aicode]
+- 项目维护者: [yxmeco]
+- 邮箱: [yx@meco.pro]
+- 项目地址: [https://github.com/yxmeco/dstatus]
 
 ## 🙏 致谢
 

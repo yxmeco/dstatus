@@ -39,25 +39,32 @@ def get_domain(id):
 def check_domain(id):
     domain = Domain.query.get_or_404(id)
     
-    result = {'success': True, 'messages': []}
+    import threading
     
-    if domain.check_ssl:
-        try:
-            check_single_certificate(domain.id)
-            result['messages'].append('SSL证书检查完成')
-        except Exception as e:
-            result['messages'].append(f'SSL证书检查失败: {str(e)}')
-            result['success'] = False
+    def async_check():
+        from app import create_app
+        app = create_app(init_scheduler=False)
+        with app.app_context():
+            try:
+                if domain.check_ssl:
+                    check_single_certificate(domain.id)
+                    print(f"域名 {domain.name} SSL证书检查完成")
+                
+                if domain.check_url:
+                    check_single_url(domain.id)
+                    print(f"域名 {domain.name} URL可用性检查完成")
+            except Exception as e:
+                print(f"域名 {domain.name} 检查失败: {str(e)}")
     
-    if domain.check_url:
-        try:
-            check_single_url(domain.id)
-            result['messages'].append('URL可用性检查完成')
-        except Exception as e:
-            result['messages'].append(f'URL可用性检查失败: {str(e)}')
-            result['success'] = False
+    # 启动异步线程
+    thread = threading.Thread(target=async_check)
+    thread.daemon = True
+    thread.start()
     
-    return jsonify(result)
+    return jsonify({
+        'success': True, 
+        'message': f'已开始检查域名 {domain.name}，请稍后查看结果'
+    })
 
 @api_bp.route('/certificates')
 def get_certificates():

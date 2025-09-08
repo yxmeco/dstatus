@@ -45,9 +45,9 @@
 <div class="row">
     <div class="col-12">
         <div class="table-container">
-            {% if domains %}
-            <div class="table-responsive">
-                <table class="table table-hover">
+                {% if domains %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
                     <thead class="table-header-fusion">
                         <tr>
                             <th><i class="fas fa-globe me-2"></i>域名</th>
@@ -57,8 +57,8 @@
                             <th><i class="fas fa-shield-alt me-2"></i>SSL证书到期</th>
                             <th><i class="fas fa-bell me-2"></i>通知配置</th>
                             <th><i class="fas fa-cogs me-2"></i>操作</th>
-                        </tr>
-                    </thead>
+                            </tr>
+                        </thead>
                         <tbody>
                             {% for domain in domains %}
                             <tr>
@@ -79,6 +79,21 @@
                                                 状态码: {{ domain.latest_access_status_code }}
                                             </small>
                                         {% endif %}
+                                        {% if domain.latest_access_check_time %}
+                                            <br><small class="text-muted">
+                                                <i class="fas fa-clock me-1"></i>
+                                                {{ domain.latest_access_check_time.strftime('%m-%d %H:%M') }}
+                                            </small>
+                                        {% endif %}
+                                        {% if domain.website_url %}
+                                            <br><small class="text-muted">
+                                                <i class="fas fa-link me-1"></i>
+                                                <a href="{{ url_for('urls.show', id=domain.website_url.id) }}" 
+                                                   class="text-decoration-none" target="_blank">
+                                                    查看监控详情
+                                                </a>
+                                            </small>
+                                        {% endif %}
                                     {% else %}
                                         <span class="badge bg-light text-dark">未启用</span>
                                     {% endif %}
@@ -96,6 +111,12 @@
                                                     {% endif %}
                                                 </small>
                                             {% endif %}
+                                            {% if domain.whois_records[0].last_checked %}
+                                                <br><small class="text-muted">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    {{ domain.whois_records[0].last_checked.strftime('%m-%d %H:%M') }}
+                                                </small>
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">未知</span>
                                         {% endif %}
@@ -104,6 +125,12 @@
                                             <span class="text-warning">查询中</span>
                                         {% else %}
                                             <span class="text-danger">查询失败</span>
+                                        {% endif %}
+                                        {% if domain.whois_records[0].last_checked %}
+                                            <br><small class="text-muted">
+                                                <i class="fas fa-clock me-1"></i>
+                                                {{ domain.whois_records[0].last_checked.strftime('%m-%d %H:%M') }}
+                                            </small>
                                         {% endif %}
                                     {% else %}
                                         {% if domain.check_whois %}
@@ -196,16 +223,11 @@
                                             </span>
                                         </button>
                                         {% endif %}
-                                        {% if domain.check_access %}
-                                        <button type="button" class="btn btn-sm btn-outline-warning refresh-access-btn" 
+                                        <button type="button" class="btn btn-sm btn-outline-danger delete-domain-btn" 
                                                 data-domain-id="{{ domain.id }}" data-domain-name="{{ domain.name }}"
-                                                data-bs-toggle="tooltip" data-bs-placement="top" title="刷新官网可用性">
-                                            <i class="fas fa-check-circle"></i>
-                                            <span class="refresh-status-indicator" style="display: none;">
-                                                <i class="fas fa-spinner fa-spin"></i>
-                                            </span>
+                                                data-bs-toggle="tooltip" data-bs-placement="top" title="删除域名">
+                                            <i class="fas fa-trash"></i>
                                         </button>
-                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -337,6 +359,25 @@
     </div>
 </div>
 
+<!-- 域名删除状态指示器 -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="domainDeleteIndicator" class="toast" role="alert" aria-live="assertive" aria-atomic="true" style="display: none;">
+        <div class="toast-header">
+            <i class="fas fa-trash text-danger me-2"></i>
+            <strong class="me-auto">域名删除</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            <div id="domainDeleteStatus">正在删除域名...</div>
+            <div id="domainDeleteProgress" class="progress mt-2" style="height: 4px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" 
+                     role="progressbar" style="width: 0%"></div>
+            </div>
+            <div id="domainDeleteResult" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
 <script>
 // 页面加载时检查是否有WHOIS查询正在进行
 document.addEventListener('DOMContentLoaded', function() {
@@ -392,47 +433,125 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // 官网可用性刷新功能
-    const accessButtons = document.querySelectorAll('.refresh-access-btn');
     
-    accessButtons.forEach(function(btn) {
+    // 域名删除功能
+    const deleteButtons = document.querySelectorAll('.delete-domain-btn');
+    
+    deleteButtons.forEach(function(btn) {
         btn.addEventListener('click', function() {
             const domainId = this.getAttribute('data-domain-id');
             const domainName = this.getAttribute('data-domain-name');
             
-            // 防止重复点击
-            if (this.disabled) return;
-            
-            // 更新按钮状态
-            this.disabled = true;
-            this.classList.remove('btn-outline-warning');
-            this.classList.add('btn-secondary');
-            this.querySelector('.fas.fa-check-circle').style.display = 'none';
-            this.querySelector('.refresh-status-indicator').style.display = 'inline';
-            
-            // 显示刷新状态
-            showDomainRefreshProgress(`正在刷新 ${domainName} 的官网可用性...`);
-            
-            // 发送刷新请求
-            fetch(`/domains/${domainId}/refresh_access`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                handleDomainRefreshResult(data, domainName, '官网可用性');
-            })
-            .catch(error => {
-                handleDomainRefreshError(error, domainName, '官网可用性');
-            })
-            .finally(() => {
-                // 恢复按钮状态
-                resetDomainRefreshButtonState(this, 'access');
-            });
+            // 显示确认对话框
+            if (confirm(`确定要删除域名 "${domainName}" 吗？\n\n此操作将删除：\n• 域名信息\n• WHOIS记录\n• 访问检查记录\n• SSL证书文件\n• 相关通知配置\n\n此操作不可撤销！`)) {
+                // 防止重复点击
+                if (this.disabled) return;
+                
+                // 更新按钮状态
+                this.disabled = true;
+                this.classList.remove('btn-outline-danger');
+                this.classList.add('btn-secondary');
+                this.querySelector('.fas.fa-trash').style.display = 'none';
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                
+                // 显示删除进度
+                showDomainDeleteProgress(`正在删除域名 "${domainName}"...`);
+                
+                // 发送删除请求
+                fetch(`/domains/${domainId}/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        return response.text();
+                    } else {
+                        throw new Error('删除请求失败');
+                    }
+                })
+                .then(data => {
+                    handleDomainDeleteResult(true, domainName);
+                })
+                .catch(error => {
+                    handleDomainDeleteResult(false, domainName, error.message);
+                })
+                .finally(() => {
+                    // 恢复按钮状态
+                    resetDomainDeleteButtonState(this);
+                });
+            }
         });
     });
+    
+    // 显示域名删除进度
+    function showDomainDeleteProgress(message) {
+        const indicator = document.getElementById('domainDeleteIndicator');
+        const progress = document.getElementById('domainDeleteProgress');
+        const result = document.getElementById('domainDeleteResult');
+        const status = document.getElementById('domainDeleteStatus');
+        
+        status.textContent = message;
+        progress.style.display = 'block';
+        result.style.display = 'none';
+        
+        const toast = new bootstrap.Toast(indicator);
+        toast.show();
+    }
+    
+    // 处理域名删除结果
+    function handleDomainDeleteResult(success, domainName, errorMessage = '') {
+        const indicator = document.getElementById('domainDeleteIndicator');
+        const progress = document.getElementById('domainDeleteProgress');
+        const result = document.getElementById('domainDeleteResult');
+        const status = document.getElementById('domainDeleteStatus');
+        
+        progress.style.display = 'none';
+        result.style.display = 'block';
+        
+        if (success) {
+            status.innerHTML = '<i class="fas fa-check-circle text-success me-2"></i><strong>删除成功</strong>';
+            result.innerHTML = `
+                <div class="domain-delete-result-success">
+                    <div class="mt-2">
+                        <strong>域名:</strong> ${domainName}<br>
+                        <strong>状态:</strong> 域名及其相关记录已成功删除<br>
+                        <strong>时间:</strong> ${new Date().toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai'})}
+                    </div>
+                </div>
+            `;
+            
+            // 2秒后自动刷新页面
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            status.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-2"></i><strong>删除失败</strong>';
+            result.innerHTML = `
+                <div class="domain-delete-result-error">
+                    <div class="mt-2">
+                        <strong>域名:</strong> ${domainName}<br>
+                        <strong>错误:</strong> ${errorMessage || '删除操作失败'}
+                    </div>
+                </div>
+            `;
+            
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                const toast = bootstrap.Toast.getInstance(indicator);
+                if (toast) toast.hide();
+            }, 5000);
+        }
+    }
+    
+    // 重置域名删除按钮状态
+    function resetDomainDeleteButtonState(button) {
+        button.disabled = false;
+        button.classList.remove('btn-secondary');
+        button.classList.add('btn-outline-danger');
+        button.innerHTML = '<i class="fas fa-trash"></i>';
+    }
     
     // 显示域名刷新进度
     function showDomainRefreshProgress(message) {
@@ -533,9 +652,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (type === 'whois') {
             button.classList.add('btn-outline-info');
             button.querySelector('.fas.fa-globe').style.display = 'inline';
-        } else if (type === 'access') {
-            button.classList.add('btn-outline-warning');
-            button.querySelector('.fas.fa-check-circle').style.display = 'inline';
         }
         
         button.querySelector('.refresh-status-indicator').style.display = 'none';
@@ -568,14 +684,12 @@ function changePerPage(value) {
     margin: 10px 0;
 }
 
-.refresh-whois-btn,
-.refresh-access-btn {
+.refresh-whois-btn {
     position: relative;
     transition: all 0.3s ease;
 }
 
-.refresh-whois-btn:disabled,
-.refresh-access-btn:disabled {
+.refresh-whois-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
 }
@@ -586,6 +700,38 @@ function changePerPage(value) {
     left: 50%;
     transform: translate(-50%, -50%);
     color: #6c757d;
+}
+
+.domain-delete-result-success {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.domain-delete-result-error {
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+    color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+}
+
+.delete-domain-btn {
+    transition: all 0.3s ease;
+}
+
+.delete-domain-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.delete-domain-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 </style>
 {% endblock %}

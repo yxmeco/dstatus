@@ -190,10 +190,13 @@ def check_async(id):
         from app.services.url_checker import URLChecker
         
         def async_check():
-            try:
-                URLChecker.check_single_url(url_obj.id)
-            except Exception as e:
-                print(f"异步URL检查失败 {url_obj.name}: {str(e)}")
+            from app import create_app
+            app = create_app(init_scheduler=False)
+            with app.app_context():
+                try:
+                    URLChecker.check_single_url(url_obj.id)
+                except Exception as e:
+                    print(f"异步URL检查失败 {url_obj.name}: {str(e)}")
         
         thread = threading.Thread(target=async_check)
         thread.daemon = True
