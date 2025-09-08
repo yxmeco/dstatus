@@ -3,7 +3,7 @@
 一个基于Flask的现代化域名证书管理系统，提供域名监控、SSL证书管理、URL可用性监控、代理管理等功能。
 
 所有的功能都是基于cursor 使用Ai编写
-
+![img_13.png](img_13.png)
 ![img_6.png](img_6.png)
 ![img_8.png](img_8.png)
 ![img_7.png](img_7.png)
